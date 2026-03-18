@@ -308,3 +308,11 @@ We are building the public credibility layer that research on the internet has b
 ## One-line summary
 
 **Korvo Atlas is an open-source, verifiable research graph for publishing source-backed knowledge that humans and AI can trust.**
+
+---
+
+## License
+
+This project is licensed under the Apache License 2.0. See the [LICENSE](./LICENSE) file for details.
+
+The names “Korvo” and “Korvo Atlas”, and any associated logos, marks, or branding, are not granted under this repository’s open-source license and remain protected brand assets of their respective owner.
