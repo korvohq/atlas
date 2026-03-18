@@ -1,0 +1,71 @@
+{
+  "$id": "https://atlas.korvo.io/schemas/artifact.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Artifact",
+  "description": "A research output composed from claims and sources — the publishable unit of work.",
+  "type": "object",
+  "required": ["id", "title", "type", "body", "claimIds", "sourceIds", "createdAt"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "type": {
+      "type": "string",
+      "enum": ["brief", "memo", "watchlist", "market_map", "tracker", "claim_thread", "source_pack", "report"],
+      "description": "The kind of research artifact."
+    },
+    "body": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Main content of the artifact (Markdown supported)."
+    },
+    "summary": {
+      "type": "string",
+      "description": "Optional short summary."
+    },
+    "questionId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The research question this artifact addresses."
+    },
+    "claimIds": {
+      "type": "array",
+      "items": { "type": "string", "format": "uuid" },
+      "minItems": 1,
+      "description": "Claims included in or supported by this artifact."
+    },
+    "sourceIds": {
+      "type": "array",
+      "items": { "type": "string", "format": "uuid" },
+      "minItems": 1,
+      "description": "Sources referenced by this artifact."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "published", "under_review", "archived"],
+      "default": "draft"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "createdBy": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}
+

@@ -1,0 +1,51 @@
+{
+  "$id": "https://atlas.korvo.io/schemas/validator.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Validator",
+  "description": "A reviewer, contributor, or agent providing verification signals on claims and artifacts.",
+  "type": "object",
+  "required": ["id", "name", "type", "createdAt"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Display name of the validator."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["human", "agent", "organization"],
+      "description": "Whether this validator is a person, AI agent, or org."
+    },
+    "expertise": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Domains this validator is qualified to review."
+    },
+    "reputation": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "default": 0,
+      "description": "Reputation score (0-100), earned through validated reviews."
+    },
+    "validationCount": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}
+

@@ -1,0 +1,65 @@
+{
+  "$id": "https://atlas.korvo.io/schemas/source.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Source",
+  "description": "A piece of evidence or reference material backing a claim or artifact.",
+  "type": "object",
+  "required": ["id", "type", "title", "createdAt"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for the source."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["url", "paper", "dataset", "document", "api", "testimony", "other"],
+      "description": "The kind of source material."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable title of the source."
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "URL if the source is web-accessible."
+    },
+    "author": {
+      "type": "string",
+      "description": "Author or publisher of the source."
+    },
+    "publishedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the source was originally published."
+    },
+    "retrievedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the source was accessed / retrieved."
+    },
+    "contentHash": {
+      "type": "string",
+      "description": "SHA-256 hash of the source content for integrity verification."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "createdBy": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}
+

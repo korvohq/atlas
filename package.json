@@ -1,0 +1,44 @@
+{
+  "name": "@korvo/atlas",
+  "version": "0.1.0",
+  "description": "Korvo Atlas — Verifiable research infrastructure for humans and AI.",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "nodemon --exec ts-node src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "seed": "ts-node seeds/seed.ts",
+    "seed:fresh": "rm -f atlas.db && ts-node seeds/seed.ts",
+    "test": "echo \"Tests coming soon\" && exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/korvohq/atlas.git"
+  },
+  "keywords": ["research", "knowledge-graph", "verifiable", "AI", "open-source"],
+  "author": "Korvo",
+  "license": "Apache-2.0",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/korvohq/atlas/issues"
+  },
+  "homepage": "https://github.com/korvohq/atlas#readme",
+  "dependencies": {
+    "ajv": "^8.18.0",
+    "ajv-formats": "^3.0.1",
+    "better-sqlite3": "^12.8.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.5.0",
+    "@types/uuid": "^10.0.0",
+    "nodemon": "^3.1.14",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}

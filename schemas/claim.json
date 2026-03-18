@@ -1,0 +1,57 @@
+{
+  "$id": "https://atlas.korvo.io/schemas/claim.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Claim",
+  "description": "A structured assertion derived from evidence, linked to sources.",
+  "type": "object",
+  "required": ["id", "statement", "confidence", "sourceIds", "createdAt"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "statement": {
+      "type": "string",
+      "minLength": 10,
+      "description": "The claim itself, stated clearly and precisely."
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "verified"],
+      "description": "How confident the author is in this claim."
+    },
+    "sourceIds": {
+      "type": "array",
+      "items": { "type": "string", "format": "uuid" },
+      "minItems": 1,
+      "description": "At least one source must back the claim."
+    },
+    "questionId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The research question this claim helps answer."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "published", "disputed", "retracted"],
+      "default": "draft"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "createdBy": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}
+
