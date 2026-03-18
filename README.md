@@ -311,6 +311,14 @@ We are building the public credibility layer that research on the internet has b
 
 ---
 
+## Support
+
+If you want to support Korvo Atlas, sponsor the project on Open Collective:
+
+https://opencollective.com/korvo-atlas
+
+---
+
 ## License
 
 This project is licensed under the Apache License 2.0. See the [LICENSE](./LICENSE) file for details.
