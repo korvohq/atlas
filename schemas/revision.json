@@ -1,0 +1,42 @@
+{
+  "$id": "https://atlas.korvo.io/schemas/revision.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Revision",
+  "description": "A historical snapshot of an artifact at a specific point in time.",
+  "type": "object",
+  "required": ["id", "artifactId", "version", "snapshot", "createdAt"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "artifactId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The artifact this revision belongs to."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Sequential version number (auto-incremented)."
+    },
+    "snapshot": {
+      "type": "object",
+      "description": "Full JSON snapshot of the artifact at this version."
+    },
+    "changedBy": {
+      "type": "string",
+      "description": "Who made the change (user or agent identifier)."
+    },
+    "changeNote": {
+      "type": "string",
+      "description": "Optional note describing what was changed."
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}
+

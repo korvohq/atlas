@@ -167,5 +167,74 @@ for (const a of artifacts) {
 }
 console.log(`✅ Seeded ${artifacts.length} artifacts`);
 
+// ── API Keys ────────────────────────────────────────────────
+const DEV_ADMIN_KEY = 'atl_dev_admin_000000000000000000000000';
+const DEV_CONTRIBUTOR_KEY = 'atl_dev_contributor_0000000000000000';
+
+db.prepare(`INSERT INTO api_keys (id, key, name, role, createdAt, revokedAt)
+  VALUES (?, ?, ?, ?, ?, ?)`).run(uuid(), DEV_ADMIN_KEY, 'Dev Admin', 'admin', now, null);
+db.prepare(`INSERT INTO api_keys (id, key, name, role, createdAt, revokedAt)
+  VALUES (?, ?, ?, ?, ?, ?)`).run(uuid(), DEV_CONTRIBUTOR_KEY, 'Dev Contributor', 'contributor', now, null);
+console.log(`✅ Seeded 2 API keys`);
+console.log(`   Admin key:       ${DEV_ADMIN_KEY}`);
+console.log(`   Contributor key:  ${DEV_CONTRIBUTOR_KEY}`);
+
+// ── Challenges ──────────────────────────────────────────────
+const challenges = [
+  {
+    id: uuid(),
+    claimId: claims[2].id,
+    challengerId: validators[1].id,
+    reason: 'The claim that mixing synthetic data improves performance lacks sufficient evidence for the general case. The cited sources only demonstrate this for narrow benchmarks.',
+    evidence: 'See: "Scaling Data-Constrained Language Models" — results are benchmark-specific and do not generalize.',
+    status: 'open',
+  },
+];
+
+for (const ch of challenges) {
+  db.prepare(`INSERT INTO challenges (id, claimId, challengerId, reason, evidence, status, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    ch.id, ch.claimId, ch.challengerId, ch.reason, ch.evidence, ch.status, now, now
+  );
+  // Auto-dispute the claim
+  db.prepare(`UPDATE claims SET status = 'disputed', updatedAt = ? WHERE id = ?`).run(now, ch.claimId);
+}
+console.log(`✅ Seeded ${challenges.length} challenges`);
+
+// ── Endorsements ────────────────────────────────────────────
+const endorsements = [
+  {
+    id: uuid(),
+    claimId: claims[0].id,
+    validatorId: validators[0].id,
+    comment: 'Strong evidence from the Shumailov et al. paper. Model collapse is well-documented.',
+    weight: 5,
+  },
+  {
+    id: uuid(),
+    claimId: claims[0].id,
+    validatorId: validators[1].id,
+    comment: 'Automated link check confirms source is accessible and content matches.',
+    weight: 3,
+  },
+  {
+    id: uuid(),
+    claimId: claims[1].id,
+    validatorId: validators[0].id,
+    comment: 'RAG hallucination reduction is well-established in the literature.',
+    weight: 4,
+  },
+];
+
+for (const e of endorsements) {
+  db.prepare(`INSERT INTO endorsements (id, claimId, validatorId, comment, weight, createdAt)
+    VALUES (?, ?, ?, ?, ?, ?)`).run(
+    e.id, e.claimId, e.validatorId, e.comment, e.weight, now
+  );
+}
+console.log(`✅ Seeded ${endorsements.length} endorsements`);
+
 console.log('\n🌐 Database seeded successfully. Start the server with: npm run dev');
+console.log('🔑 Use the dev admin key for write operations:');
+console.log(`   Authorization: Bearer ${DEV_ADMIN_KEY}`);
 

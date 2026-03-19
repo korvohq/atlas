@@ -1,0 +1,865 @@
+openapi: 3.0.3
+info:
+  title: Korvo Atlas API
+  description: |
+    Verifiable research infrastructure for humans and AI.
+
+    Atlas is an open-source protocol for publishing, validating, and structuring
+    research into source-backed, machine-ingestable knowledge objects anchored
+    on a blockchain.
+
+    **Authentication:**
+    - All `GET` requests are public (no auth required)
+    - All write operations (`POST`, `PATCH`, `DELETE`) require a valid API key
+    - Pass via header: `Authorization: Bearer <api-key>`
+  version: 0.2.0
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  contact:
+    name: Korvo
+    url: https://github.com/korvohq/atlas
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+  - url: https://atlas.korvo.io
+    description: Production (canonical hub)
+
+security: []
+
+components:
+  securitySchemes:
+    BearerApiKey:
+      type: http
+      scheme: bearer
+      description: Atlas API key (format `atl_...`). Required for write operations.
+
+  schemas:
+    Question:
+      type: object
+      required: [id, text, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        text: { type: string, minLength: 10 }
+        context: { type: string }
+        tags: { type: array, items: { type: string } }
+        status: { type: string, enum: [open, in_progress, answered, closed] }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Source:
+      type: object
+      required: [id, type, title, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, enum: [url, paper, dataset, document, api, testimony, other] }
+        title: { type: string }
+        url: { type: string, format: uri }
+        author: { type: string }
+        publishedAt: { type: string, format: date-time }
+        retrievedAt: { type: string, format: date-time }
+        contentHash: { type: string }
+        tags: { type: array, items: { type: string } }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Claim:
+      type: object
+      required: [id, statement, confidence, sourceIds, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        statement: { type: string, minLength: 10 }
+        confidence: { type: string, enum: [low, medium, high, verified] }
+        sourceIds: { type: array, items: { type: string, format: uuid }, minItems: 1 }
+        questionId: { type: string, format: uuid }
+        status: { type: string, enum: [draft, published, disputed, retracted] }
+        tags: { type: array, items: { type: string } }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Artifact:
+      type: object
+      required: [id, title, type, body, claimIds, sourceIds, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        type: { type: string, enum: [brief, memo, watchlist, market_map, tracker, claim_thread, source_pack, report] }
+        body: { type: string }
+        summary: { type: string }
+        questionId: { type: string, format: uuid }
+        claimIds: { type: array, items: { type: string, format: uuid }, minItems: 1 }
+        sourceIds: { type: array, items: { type: string, format: uuid }, minItems: 1 }
+        status: { type: string, enum: [draft, published, under_review, archived] }
+        tags: { type: array, items: { type: string } }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        onChain: { type: boolean }
+        contentHash: { type: string }
+        ipfsCid: { type: string }
+        txHash: { type: string }
+        chain: { type: string, enum: [base, arbitrum, solana, polygon, local] }
+        publishedToChainAt: { type: string, format: date-time }
+
+    Validator:
+      type: object
+      required: [id, name, type, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        type: { type: string, enum: [human, agent, organization] }
+        expertise: { type: array, items: { type: string } }
+        reputation: { type: number, minimum: 0, maximum: 100 }
+        validationCount: { type: integer, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Challenge:
+      type: object
+      required: [id, claimId, challengerId, reason, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        claimId: { type: string, format: uuid }
+        challengerId: { type: string, format: uuid }
+        reason: { type: string, minLength: 10 }
+        evidence: { type: string }
+        status: { type: string, enum: [open, accepted, rejected, resolved] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Endorsement:
+      type: object
+      required: [id, claimId, validatorId, weight, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        claimId: { type: string, format: uuid }
+        validatorId: { type: string, format: uuid }
+        comment: { type: string }
+        weight: { type: number, minimum: 1, maximum: 5 }
+        createdAt: { type: string, format: date-time }
+
+    Revision:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        artifactId: { type: string, format: uuid }
+        version: { type: integer }
+        snapshot: { type: object }
+        changedBy: { type: string }
+        changeNote: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    ChainRecord:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        artifactId: { type: string, format: uuid }
+        contentHash: { type: string }
+        ipfsCid: { type: string }
+        chain: { type: string }
+        txHash: { type: string }
+        blockNumber: { type: integer }
+        publishedBy: { type: string }
+        previousVersionTx: { type: string }
+        publishedAt: { type: string, format: date-time }
+
+    PublishResponse:
+      type: object
+      properties:
+        message: { type: string }
+        artifactId: { type: string }
+        contentHash: { type: string }
+        ipfsCid: { type: string }
+        txHash: { type: string }
+        chain: { type: string }
+        blockNumber: { type: integer }
+        publishedAt: { type: string, format: date-time }
+
+    VerifyResponse:
+      type: object
+      properties:
+        verified: { type: boolean }
+        contentHashMatch: { type: boolean }
+        onChainRecord: { type: object }
+        error: { type: string }
+
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      tags: [System]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  service: { type: string, example: korvo-atlas }
+                  version: { type: string, example: 0.2.0 }
+
+  # ── Questions ──
+  /api/questions:
+    get:
+      summary: List all questions
+      tags: [Questions]
+      responses:
+        '200':
+          description: Array of questions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Question' }
+    post:
+      summary: Create a question
+      tags: [Questions]
+      security: [{ BearerApiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text, status]
+              properties:
+                text: { type: string }
+                context: { type: string }
+                tags: { type: array, items: { type: string } }
+                status: { type: string }
+                createdBy: { type: string }
+      responses:
+        '201': { description: Question created }
+        '400': { description: Validation error }
+        '401': { description: Missing API key }
+
+  /api/questions/{id}:
+    get:
+      summary: Get question by ID
+      tags: [Questions]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Question object
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Question' }
+        '404': { description: Not found }
+    patch:
+      summary: Update a question
+      tags: [Questions]
+      security: [{ BearerApiKey: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: Updated question }
+        '401': { description: Missing API key }
+        '404': { description: Not found }
+    delete:
+      summary: Delete a question
+      tags: [Questions]
+      security: [{ BearerApiKey: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Deleted }
+        '401': { description: Missing API key }
+        '404': { description: Not found }
+
+  # ── Sources ──
+  /api/sources:
+    get:
+      summary: List all sources
+      tags: [Sources]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Source' }
+    post:
+      summary: Create a source
+      tags: [Sources]
+      security: [{ BearerApiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '201': { description: Source created }
+        '400': { description: Validation error }
+        '401': { description: Missing API key }
+
+  /api/sources/{id}:
+    get:
+      summary: Get source by ID
+      tags: [Sources]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Source' }
+        '404': { description: Not found }
+    patch:
+      summary: Update a source
+      tags: [Sources]
+      security: [{ BearerApiKey: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Updated }
+        '401': { description: Missing API key }
+        '404': { description: Not found }
+    delete:
+      summary: Delete a source
+      tags: [Sources]
+      security: [{ BearerApiKey: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Deleted }
+        '404': { description: Not found }
+
+  # ── Claims ──
+  /api/claims:
+    get:
+      summary: List all claims
+      tags: [Claims]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Claim' }
+    post:
+      summary: Create a claim
+      tags: [Claims]
+      security: [{ BearerApiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '201': { description: Claim created }
+        '400': { description: Validation error }
+        '401': { description: Missing API key }
+
+  /api/claims/{id}:
+    get:
+      summary: Get claim by ID
+      tags: [Claims]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Claim' }
+        '404': { description: Not found }
+    patch:
+      summary: Update a claim
+      tags: [Claims]
+      security: [{ BearerApiKey: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Updated }
+        '401': { description: Missing API key }
+        '404': { description: Not found }
+    delete:
+      summary: Delete a claim
+      tags: [Claims]
+      security: [{ BearerApiKey: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Deleted }
+        '404': { description: Not found }
+
+  # ── Artifacts ──
+  /api/artifacts:
+    get:
+      summary: List all artifacts
+      tags: [Artifacts]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Artifact' }
+    post:
+      summary: Create an artifact
+      tags: [Artifacts]
+      security: [{ BearerApiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '201': { description: Artifact created }
+        '400': { description: Validation error }
+        '401': { description: Missing API key }
+
+  /api/artifacts/{id}:
+    get:
+      summary: Get artifact by ID
+      tags: [Artifacts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Artifact' }
+        '404': { description: Not found }
+    patch:
+      summary: Update an artifact (creates a revision snapshot)
+      tags: [Artifacts]
+      security: [{ BearerApiKey: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                changedBy: { type: string, description: Who made the change }
+                changeNote: { type: string, description: What was changed }
+      responses:
+        '200': { description: Updated artifact with _revision number }
+        '401': { description: Missing API key }
+        '404': { description: Not found }
+    delete:
+      summary: Delete an artifact
+      tags: [Artifacts]
+      security: [{ BearerApiKey: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Deleted }
+        '404': { description: Not found }
+
+  /api/artifacts/{id}/history:
+    get:
+      summary: Get revision history for an artifact
+      tags: [Artifacts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Revision history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  artifactId: { type: string }
+                  title: { type: string }
+                  totalRevisions: { type: integer }
+                  revisions:
+                    type: array
+                    items: { $ref: '#/components/schemas/Revision' }
+        '404': { description: Artifact not found }
+
+  # ── Validators ──
+  /api/validators:
+    get:
+      summary: List all validators
+      tags: [Validators]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Validator' }
+    post:
+      summary: Create a validator
+      tags: [Validators]
+      security: [{ BearerApiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '201': { description: Validator created }
+        '400': { description: Validation error }
+        '401': { description: Missing API key }
+
+  /api/validators/{id}:
+    get:
+      summary: Get validator by ID
+      tags: [Validators]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Validator' }
+        '404': { description: Not found }
+    patch:
+      summary: Update a validator
+      tags: [Validators]
+      security: [{ BearerApiKey: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Updated }
+        '404': { description: Not found }
+    delete:
+      summary: Delete a validator
+      tags: [Validators]
+      security: [{ BearerApiKey: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Deleted }
+        '404': { description: Not found }
+
+  # ── Challenges ──
+  /api/challenges:
+    get:
+      summary: List all challenges
+      tags: [Challenges]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Challenge' }
+    post:
+      summary: Challenge a claim (auto-disputes the claim)
+      tags: [Challenges]
+      security: [{ BearerApiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [claimId, challengerId, reason]
+              properties:
+                claimId: { type: string, format: uuid }
+                challengerId: { type: string, format: uuid }
+                reason: { type: string, minLength: 10 }
+                evidence: { type: string }
+      responses:
+        '201': { description: Challenge created, claim status set to disputed }
+        '400': { description: Validation error or referenced object not found }
+        '401': { description: Missing API key }
+
+  /api/challenges/{id}:
+    get:
+      summary: Get challenge by ID
+      tags: [Challenges]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Challenge' }
+        '404': { description: Not found }
+    patch:
+      summary: Update challenge status
+      tags: [Challenges]
+      security: [{ BearerApiKey: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [open, accepted, rejected, resolved] }
+                reason: { type: string }
+                evidence: { type: string }
+      responses:
+        '200': { description: Updated challenge }
+        '401': { description: Missing API key }
+        '404': { description: Not found }
+
+  /api/challenges/claim/{claimId}:
+    get:
+      summary: Get all challenges for a specific claim
+      tags: [Challenges]
+      parameters:
+        - name: claimId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Challenge' }
+
+  # ── Endorsements ──
+  /api/endorsements:
+    get:
+      summary: List all endorsements
+      tags: [Endorsements]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Endorsement' }
+    post:
+      summary: Endorse a claim
+      tags: [Endorsements]
+      security: [{ BearerApiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [claimId, validatorId, weight]
+              properties:
+                claimId: { type: string, format: uuid }
+                validatorId: { type: string, format: uuid }
+                comment: { type: string }
+                weight: { type: number, minimum: 1, maximum: 5 }
+      responses:
+        '201': { description: Endorsement created }
+        '400': { description: Validation error or referenced object not found }
+        '401': { description: Missing API key }
+        '409': { description: Validator already endorsed this claim }
+
+  /api/endorsements/claim/{claimId}:
+    get:
+      summary: Get all endorsements for a claim (with summary stats)
+      tags: [Endorsements]
+      parameters:
+        - name: claimId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Endorsements with aggregate scores
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  claimId: { type: string }
+                  endorsements:
+                    type: array
+                    items: { $ref: '#/components/schemas/Endorsement' }
+                  summary:
+                    type: object
+                    properties:
+                      count: { type: integer }
+                      totalWeight: { type: number }
+                      averageWeight: { type: number }
+
+  # ── Publish (Blockchain) ──
+  /api/publish/{artifactId}:
+    post:
+      summary: Publish an artifact to the blockchain
+      tags: [Publish]
+      security: [{ BearerApiKey: [] }]
+      parameters:
+        - name: artifactId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                publishedBy: { type: string }
+      responses:
+        '201':
+          description: Successfully published to chain
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublishResponse' }
+        '404': { description: Artifact not found }
+        '409': { description: Already published }
+        '401': { description: Missing API key }
+
+  /api/publish/{artifactId}/verify:
+    get:
+      summary: Verify artifact against on-chain proof
+      tags: [Publish]
+      parameters:
+        - name: artifactId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Verification passed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VerifyResponse' }
+        '422': { description: Verification failed }
+
+  /api/publish/chain-records:
+    get:
+      summary: List all on-chain publication records
+      tags: [Publish]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ChainRecord' }
+
+  # ── API Keys (Admin) ──
+  /api/keys:
+    get:
+      summary: List all API keys (masked)
+      tags: [Admin]
+      security: [{ BearerApiKey: [] }]
+      responses:
+        '200': { description: Array of masked API keys }
+        '403': { description: Admin role required }
+    post:
+      summary: Create a new API key
+      tags: [Admin]
+      security: [{ BearerApiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, role]
+              properties:
+                name: { type: string }
+                role: { type: string, enum: [admin, contributor, agent] }
+      responses:
+        '201': { description: API key created (shown once) }
+        '403': { description: Admin role required }
+
+  /api/keys/{id}:
+    delete:
+      summary: Revoke an API key
+      tags: [Admin]
+      security: [{ BearerApiKey: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Key revoked }
+        '403': { description: Admin role required }
+        '404': { description: Key not found }
+        '409': { description: Already revoked }
+
+tags:
+  - name: System
+    description: Health and status
+  - name: Questions
+    description: Research questions — the starting point for investigation
+  - name: Sources
+    description: Evidence and reference material
+  - name: Claims
+    description: Structured assertions derived from evidence
+  - name: Artifacts
+    description: Research outputs composed from claims and sources
+  - name: Validators
+    description: Reviewers, contributors, and agents
+  - name: Challenges
+    description: Dispute and challenge claims
+  - name: Endorsements
+    description: Endorse and validate claims
+  - name: Publish
+    description: Blockchain publish and verification
+  - name: Admin
+    description: API key management (admin only)
+

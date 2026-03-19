@@ -1,0 +1,40 @@
+{
+  "$id": "https://atlas.korvo.io/schemas/endorsement.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Endorsement",
+  "description": "A validator's endorsement of a claim, contributing to its credibility.",
+  "type": "object",
+  "required": ["id", "claimId", "validatorId", "weight", "createdAt"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "claimId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The claim being endorsed."
+    },
+    "validatorId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The validator providing this endorsement."
+    },
+    "comment": {
+      "type": "string",
+      "description": "Optional explanation for the endorsement."
+    },
+    "weight": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "Strength of endorsement (1 = weak agreement, 5 = strong verification)."
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}
+

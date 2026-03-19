@@ -1,0 +1,49 @@
+{
+  "$id": "https://atlas.korvo.io/schemas/challenge.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Challenge",
+  "description": "A dispute raised by a validator against a claim, requiring evidence and resolution.",
+  "type": "object",
+  "required": ["id", "claimId", "challengerId", "reason", "createdAt"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "claimId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The claim being challenged."
+    },
+    "challengerId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The validator who raised this challenge."
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 10,
+      "description": "Why this claim is being disputed — must be substantive."
+    },
+    "evidence": {
+      "type": "string",
+      "description": "Supporting evidence or references for the challenge."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["open", "accepted", "rejected", "resolved"],
+      "default": "open",
+      "description": "Current resolution state of the challenge."
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}
+

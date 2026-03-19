@@ -242,19 +242,115 @@ Korvo Atlas is designed to maximize openness where openness creates trust, adopt
 
 ---
 
-## Initial object model
+## Object model
 
-The initial system is centered around five core objects:
+The system is centered around eight core objects:
 
 - **Question** — what is being investigated
 - **Source** — the evidence or reference material
 - **Claim** — a structured assertion derived from evidence
 - **Artifact** — a research output composed from claims and sources
 - **Validator** — a reviewer, contributor, or agent providing verification signals
+- **Challenge** — a dispute raised against a claim, requiring resolution
+- **Endorsement** — a validator's vote of confidence in a claim
+- **Chain Record** — an immutable on-chain proof of a published artifact
 
-This model will evolve, but the principle remains constant:
+Every object has a formal JSON Schema in `/schemas` and is validated on every write.
 
-**research should be connected, inspectable, and verifiable**
+**Principle: research should be connected, inspectable, and verifiable.**
+
+---
+
+## Blockchain publish layer
+
+Atlas can anchor research artifacts on a blockchain for permanent, tamper-proof provenance.
+
+```
+Draft artifact → Bundle (artifact + claims + sources) → SHA-256 hash → IPFS upload → Blockchain anchor
+```
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/publish/:artifactId` | Publish an artifact to chain |
+| `GET /api/publish/:artifactId/verify` | Verify against on-chain proof |
+| `GET /api/publish/chain-records` | List all chain records |
+
+The chain layer stores **proof only** (content hash + IPFS pointer). Full content lives on IPFS. Atlas is the searchable index.
+
+**Verify CLI** — independently verify any published artifact:
+
+```bash
+npm run verify -- <artifactId>
+```
+
+---
+
+## Challenge & endorsement system
+
+### Challenges
+
+Validators can dispute claims with evidence. When a challenge is created, the linked claim is automatically marked as `disputed`.
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/challenges` | Challenge a claim |
+| `GET /api/challenges` | List all challenges |
+| `GET /api/challenges/claim/:claimId` | Challenges for a specific claim |
+| `PATCH /api/challenges/:id` | Update challenge status |
+
+### Endorsements
+
+Validators can endorse claims with a weight (1–5). The `/claim/:claimId` endpoint returns aggregate endorsement scores.
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/endorsements` | Endorse a claim |
+| `GET /api/endorsements` | List all endorsements |
+| `GET /api/endorsements/claim/:claimId` | Endorsements + summary for a claim |
+
+---
+
+## Revision history
+
+Every time an artifact is updated via `PATCH`, a snapshot of the previous version is automatically saved.
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/artifacts/:id/history` | Full revision history with snapshots |
+
+Pass `changeNote` in PATCH requests to document what was changed.
+
+---
+
+## Authentication
+
+- **All `GET` requests are public** — no auth required
+- **All write operations** (`POST`, `PATCH`, `DELETE`) require an API key
+- Pass via header: `Authorization: Bearer <api-key>`
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/keys` | Create a new API key (admin only) |
+| `GET /api/keys` | List all keys, masked (admin only) |
+| `DELETE /api/keys/:id` | Revoke a key (admin only) |
+
+For local development, the seed script creates a default admin key:
+
+```bash
+Authorization: Bearer atl_dev_admin_000000000000000000000000
+```
+
+---
+
+## API documentation
+
+Full OpenAPI 3.0 spec is available at [`openapi.yaml`](./openapi.yaml).
+
+---
+
+## Governance
+
+See [`GOVERNANCE.md`](./GOVERNANCE.md) for what is open source (Atlas protocol) vs. commercial (Korvo product).
 
 ---
 

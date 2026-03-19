@@ -14,6 +14,7 @@ router.get('/', (_req: Request, res: Response) => {
     claimIds: JSON.parse(r.claimIds || '[]'),
     sourceIds: JSON.parse(r.sourceIds || '[]'),
     tags: JSON.parse(r.tags || '[]'),
+    onChain: !!r.txHash,
   }));
   res.json(artifacts);
 });
@@ -26,6 +27,7 @@ router.get('/:id', (req: Request, res: Response) => {
     claimIds: JSON.parse(row.claimIds || '[]'),
     sourceIds: JSON.parse(row.sourceIds || '[]'),
     tags: JSON.parse(row.tags || '[]'),
+    onChain: !!row.txHash,
   });
 });
 
@@ -57,24 +59,53 @@ router.post('/', (req: Request, res: Response) => {
 });
 
 router.patch('/:id', (req: Request, res: Response) => {
-  const existing: any = getDb().prepare('SELECT * FROM artifacts WHERE id = ?').get(req.params.id);
+  const db = getDb();
+  const existing: any = db.prepare('SELECT * FROM artifacts WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Artifact not found' });
 
+  // ── Save revision snapshot before updating ──
+  const lastVersion = db.prepare('SELECT MAX(version) as maxV FROM artifact_revisions WHERE artifactId = ?').get(existing.id) as any;
+  const nextVersion = (lastVersion?.maxV || 0) + 1;
+  const snapshot = {
+    ...existing,
+    claimIds: JSON.parse(existing.claimIds || '[]'),
+    sourceIds: JSON.parse(existing.sourceIds || '[]'),
+    tags: JSON.parse(existing.tags || '[]'),
+  };
+
+  db.prepare(`
+    INSERT INTO artifact_revisions (id, artifactId, version, snapshot, changedBy, changeNote, createdAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    uuid(), existing.id, nextVersion, JSON.stringify(snapshot),
+    req.body.changedBy || req.apiKey?.name || null,
+    req.body.changeNote || null,
+    new Date().toISOString()
+  );
+
+  // ── Apply the update (strip revision-only fields) ──
+  const { changeNote, changedBy, ...artifactFields } = req.body;
   const updated: Row = {
     ...existing,
     claimIds: JSON.parse(existing.claimIds || '[]'),
     sourceIds: JSON.parse(existing.sourceIds || '[]'),
     tags: JSON.parse(existing.tags || '[]'),
-    ...req.body,
+    ...artifactFields,
     id: existing.id,
     createdAt: existing.createdAt,
     updatedAt: new Date().toISOString(),
   };
 
+  // Remove null chain fields — they're set by the publish workflow, not user PATCH
+  const chainFields = ['contentHash', 'ipfsCid', 'txHash', 'chain', 'publishedToChainAt', 'previousVersionTx'];
+  for (const f of chainFields) {
+    if (updated[f] === null || updated[f] === undefined) delete updated[f];
+  }
+
   const valid = validateArtifact(updated);
   if (!valid) return res.status(400).json({ errors: validateArtifact.errors });
 
-  getDb().prepare(`
+  db.prepare(`
     UPDATE artifacts SET title = ?, type = ?, body = ?, summary = ?, questionId = ?, claimIds = ?, sourceIds = ?, status = ?, tags = ?, createdBy = ?, updatedAt = ?
     WHERE id = ?
   `).run(
@@ -85,7 +116,32 @@ router.patch('/:id', (req: Request, res: Response) => {
     updated.createdBy || null, updated.updatedAt, updated.id
   );
 
-  res.json(updated);
+  res.json({ ...updated, _revision: nextVersion });
+});
+
+/**
+ * GET /api/artifacts/:id/history — full revision history for an artifact
+ */
+router.get('/:id/history', (req: Request, res: Response) => {
+  const artifactId = req.params.id as string;
+  const artifact = getDb().prepare('SELECT id, title FROM artifacts WHERE id = ?').get(artifactId) as Row | undefined;
+  if (!artifact) return res.status(404).json({ error: 'Artifact not found' });
+
+  const revisions = getDb()
+    .prepare('SELECT * FROM artifact_revisions WHERE artifactId = ? ORDER BY version DESC')
+    .all(artifactId) as Row[];
+
+  const parsed = revisions.map((r) => ({
+    ...r,
+    snapshot: JSON.parse(r.snapshot || '{}'),
+  }));
+
+  res.json({
+    artifactId,
+    title: artifact.title,
+    totalRevisions: parsed.length,
+    revisions: parsed,
+  });
 });
 
 router.delete('/:id', (req: Request, res: Response) => {

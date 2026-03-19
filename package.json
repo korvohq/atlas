@@ -1,6 +1,6 @@
 {
   "name": "@korvo/atlas",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Korvo Atlas — Verifiable research infrastructure for humans and AI.",
   "main": "dist/server.js",
   "scripts": {
@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "seed": "ts-node seeds/seed.ts",
     "seed:fresh": "rm -f atlas.db && ts-node seeds/seed.ts",
+    "verify": "ts-node scripts/verify.ts",
     "test": "echo \"Tests coming soon\" && exit 0"
   },
   "repository": {

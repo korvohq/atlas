@@ -1,0 +1,55 @@
+{
+  "$id": "https://atlas.korvo.io/schemas/chain-record.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ChainRecord",
+  "description": "An immutable on-chain proof record for a published research artifact.",
+  "type": "object",
+  "required": ["id", "artifactId", "contentHash", "chain", "txHash", "publishedAt"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "artifactId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The artifact this chain record proves."
+    },
+    "contentHash": {
+      "type": "string",
+      "description": "SHA-256 hash of the artifact bundle at time of publish."
+    },
+    "ipfsCid": {
+      "type": "string",
+      "description": "IPFS CID where the full artifact bundle is stored."
+    },
+    "chain": {
+      "type": "string",
+      "enum": ["base", "arbitrum", "solana", "polygon", "local"],
+      "description": "The blockchain network used for anchoring."
+    },
+    "txHash": {
+      "type": "string",
+      "description": "The transaction hash on the blockchain."
+    },
+    "blockNumber": {
+      "type": "integer",
+      "description": "Block number in which the transaction was confirmed."
+    },
+    "publishedBy": {
+      "type": "string",
+      "description": "Who triggered the publish (user or agent ID)."
+    },
+    "previousVersionTx": {
+      "type": "string",
+      "description": "txHash of the previous version, creating a revision chain."
+    },
+    "publishedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the on-chain anchoring was confirmed."
+    }
+  },
+  "additionalProperties": false
+}
+

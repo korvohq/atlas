@@ -72,7 +72,28 @@ export function initDb(): void {
       createdBy TEXT,
       createdAt TEXT NOT NULL,
       updatedAt TEXT,
+      -- Blockchain fields (populated on publish)
+      contentHash TEXT,
+      ipfsCid TEXT,
+      txHash TEXT,
+      chain TEXT,
+      publishedToChainAt TEXT,
+      previousVersionTx TEXT,
       FOREIGN KEY (questionId) REFERENCES questions(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS chain_records (
+      id TEXT PRIMARY KEY,
+      artifactId TEXT NOT NULL,
+      contentHash TEXT NOT NULL,
+      ipfsCid TEXT,
+      chain TEXT NOT NULL,
+      txHash TEXT NOT NULL UNIQUE,
+      blockNumber INTEGER,
+      publishedBy TEXT,
+      previousVersionTx TEXT,
+      publishedAt TEXT NOT NULL,
+      FOREIGN KEY (artifactId) REFERENCES artifacts(id)
     );
 
     CREATE TABLE IF NOT EXISTS validators (
@@ -84,6 +105,50 @@ export function initDb(): void {
       validationCount INTEGER NOT NULL DEFAULT 0,
       createdAt TEXT NOT NULL,
       updatedAt TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS challenges (
+      id TEXT PRIMARY KEY,
+      claimId TEXT NOT NULL,
+      challengerId TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      evidence TEXT,
+      status TEXT NOT NULL DEFAULT 'open',
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT,
+      FOREIGN KEY (claimId) REFERENCES claims(id),
+      FOREIGN KEY (challengerId) REFERENCES validators(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS endorsements (
+      id TEXT PRIMARY KEY,
+      claimId TEXT NOT NULL,
+      validatorId TEXT NOT NULL,
+      comment TEXT,
+      weight REAL NOT NULL DEFAULT 1,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY (claimId) REFERENCES claims(id),
+      FOREIGN KEY (validatorId) REFERENCES validators(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS artifact_revisions (
+      id TEXT PRIMARY KEY,
+      artifactId TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      snapshot TEXT NOT NULL,    -- Full JSON snapshot of the artifact
+      changedBy TEXT,
+      changeNote TEXT,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY (artifactId) REFERENCES artifacts(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS api_keys (
+      id TEXT PRIMARY KEY,
+      key TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('admin', 'contributor', 'agent')),
+      createdAt TEXT NOT NULL,
+      revokedAt TEXT
     );
   `);
 }

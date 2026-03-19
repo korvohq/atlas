@@ -64,6 +64,32 @@
     "updatedAt": {
       "type": "string",
       "format": "date-time"
+    },
+    "contentHash": {
+      "type": "string",
+      "description": "SHA-256 hash of the full artifact bundle (set on publish)."
+    },
+    "ipfsCid": {
+      "type": "string",
+      "description": "IPFS content identifier where the full bundle is stored."
+    },
+    "txHash": {
+      "type": "string",
+      "description": "Blockchain transaction hash anchoring this artifact."
+    },
+    "chain": {
+      "type": "string",
+      "enum": ["base", "arbitrum", "solana", "polygon", "local"],
+      "description": "Which blockchain the artifact is anchored on."
+    },
+    "publishedToChainAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the artifact was anchored on-chain."
+    },
+    "previousVersionTx": {
+      "type": "string",
+      "description": "txHash of the previous version, if this is an update."
     }
   },
   "additionalProperties": false
