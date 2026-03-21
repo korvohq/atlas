@@ -7,10 +7,36 @@ type Row = Record<string, any>;
 
 const router = Router();
 
-router.get('/', (_req: Request, res: Response) => {
-  const rows = getDb().prepare('SELECT * FROM sources ORDER BY createdAt DESC').all() as Row[];
+router.get('/', (req: Request, res: Response) => {
+  const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+  const offset = parseInt(req.query.offset as string) || 0;
+  const type = req.query.type as string;
+  const q = req.query.q as string;
+
+  let query = 'SELECT * FROM sources';
+  const conditions: string[] = [];
+  const params: any[] = [];
+
+  if (type) { conditions.push('type = ?'); params.push(type); }
+
+  if (q) {
+    const ftsIds = getDb().prepare("SELECT id FROM sources_fts WHERE sources_fts MATCH ? LIMIT ?").all(q, limit) as Row[];
+    if (ftsIds.length > 0) {
+      conditions.push(`id IN (${ftsIds.map(() => '?').join(',')})`);
+      params.push(...ftsIds.map(r => r.id));
+    } else {
+      return res.json({ data: [], total: 0, limit, offset });
+    }
+  }
+
+  if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
+  query += ' ORDER BY createdAt DESC LIMIT ? OFFSET ?';
+  params.push(limit, offset);
+
+  const rows = getDb().prepare(query).all(...params) as Row[];
   const sources = rows.map((r) => ({ ...r, tags: JSON.parse(r.tags || '[]') }));
-  res.json(sources);
+  const total = (getDb().prepare('SELECT COUNT(*) as total FROM sources').get() as Row).total;
+  res.json({ data: sources, total, limit, offset });
 });
 
 router.get('/:id', (req: Request, res: Response) => {

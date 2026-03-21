@@ -1,0 +1,78 @@
+# Korvo Atlas — robots.txt
+# https://atlas.korvo.io/robots.txt
+#
+# Public reads are welcome. Bulk scraping and AI training crawlers are not.
+
+# Standard search engines — allowed
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 2
+
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 2
+
+User-agent: DuckDuckBot
+Allow: /
+Crawl-delay: 2
+
+# ── AI Training Crawlers — blocked ──────────────────────────
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: PetalBot
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: FacebookBot
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+User-agent: cohere-ai
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+# ── Generic scrapers / aggressive bots ──────────────────────
+
+User-agent: Scrapy
+Disallow: /
+
+User-agent: wget
+Disallow: /
+
+User-agent: curl
+Disallow: /api/
+
+# ── Default ─────────────────────────────────────────────────
+
+User-agent: *
+Allow: /
+Crawl-delay: 5
+Disallow: /api/keys
+Disallow: /api/credits
+

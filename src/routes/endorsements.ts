@@ -60,6 +60,12 @@ router.post('/', (req: Request, res: Response) => {
   const validator = getDb().prepare('SELECT id FROM validators WHERE id = ?').get(endorsement.validatorId) as Row | undefined;
   if (!validator) return res.status(400).json({ error: `Validator not found: ${endorsement.validatorId}` });
 
+  // Prevent self-endorsement — a validator cannot endorse claims they authored
+  const claimRow = getDb().prepare('SELECT createdBy FROM claims WHERE id = ?').get(endorsement.claimId) as Row | undefined;
+  if (claimRow && claimRow.createdBy === endorsement.validatorId) {
+    return res.status(403).json({ error: 'Self-endorsement is not allowed. A validator cannot endorse their own claims.' });
+  }
+
   // Prevent duplicate endorsement from same validator on same claim
   const existing = getDb().prepare('SELECT id FROM endorsements WHERE claimId = ? AND validatorId = ?').get(endorsement.claimId, endorsement.validatorId) as Row | undefined;
   if (existing) return res.status(409).json({ error: 'This validator has already endorsed this claim.' });

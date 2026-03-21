@@ -15,7 +15,7 @@ How Korvo Atlas is structured, what is open, and what is commercial.
 
 Korvo Atlas is an open-source protocol and API for publishing, verifying, and structuring research.
 
-The following components are open source under the [Apache License 2.0](./LICENSE):
+The following components are open source under the [GNU Affero General Public License v3.0 (AGPL-3.0)](./LICENSE):
 
 - **Core schemas** — JSON Schema definitions for all research objects (questions, sources, claims, artifacts, validators, chain records, challenges, endorsements, revisions)
 - **REST API** — Full CRUD endpoints for all research objects
@@ -39,7 +39,7 @@ Anyone can:
 
 ## Korvo = The Commercial Product
 
-[Korvo](https://korvo.io) is the company that operates the canonical Atlas public hub and builds commercial products on top of the open protocol.
+[Korvo](https://korvo.io) is the trading name of **Snab Limited** (Company No. 16006744, England and Wales), which operates the canonical Atlas public hub and builds commercial products on top of the open protocol.
 
 The following components are developed and operated by Korvo and are **not** part of the open-source project:
 
@@ -83,6 +83,21 @@ Korvo maintains final merge authority on the open-source repository to ensure pr
 ## Trademarks
 
 The names "Korvo" and "Korvo Atlas", and any associated logos, marks, or branding, are not granted under the open-source license and remain protected brand assets. See [TRADEMARKS.md](./TRADEMARKS.md).
+
+---
+
+## Licensing Layers
+
+Korvo Atlas uses a three-layer licensing model:
+
+| Asset | License | Details |
+|-------|---------|---------|
+| Source code | AGPL-3.0 | [LICENSE](./LICENSE) |
+| Research data | CC BY-SA 4.0 | [DATA-LICENSE.md](./DATA-LICENSE.md) |
+| Compiled graph | ODbL v1.0 | [DATA-LICENSE.md](./DATA-LICENSE.md) |
+| AI training / bulk scraping | Separate license required | Contact data@korvo.io |
+
+Contributors agree to the [CLA](./CLA.md). The canonical hub operates under the [Terms of Service](./TERMS.md).
 
 ---
 

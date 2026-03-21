@@ -417,6 +417,31 @@ https://opencollective.com/korvo-atlas
 
 ## License
 
-This project is licensed under the Apache License 2.0. See the [LICENSE](./LICENSE) file for details.
+Korvo Atlas uses a **three-layer licensing model** to protect the code, the data, and the community:
 
-The names “Korvo” and “Korvo Atlas”, and any associated logos, marks, or branding, are not granted under this repository’s open-source license and remain protected brand assets of their respective owner.
+| Asset | License | File |
+|-------|---------|------|
+| Source code | **AGPL-3.0** | [LICENSE](./LICENSE) |
+| Research data (claims, sources, artifacts) | **CC BY-SA 4.0** | [DATA-LICENSE.md](./DATA-LICENSE.md) |
+| Compiled research graph / database | **ODbL v1.0** | [DATA-LICENSE.md](./DATA-LICENSE.md) |
+
+### What this means
+
+- You are free to use, modify, and distribute Korvo Atlas.
+- If you run a modified version of Atlas as a network service (e.g. a public API or hosted platform), you **must** release your modifications under the same license.
+- Research data is open with attribution — but bulk scraping for AI model training requires a separate license.
+- This ensures the research infrastructure stays open and contributions flow back to the community.
+
+### Additional policies
+
+- **[CLA.md](./CLA.md)** — Contributor License Agreement. By submitting a PR, you agree to dual-license your contribution (AGPL for open-source, separate license for Korvo's commercial products).
+- **[TERMS.md](./TERMS.md)** — Terms of Service for the canonical public hub at `atlas.korvo.io`.
+- **[DATA-LICENSE.md](./DATA-LICENSE.md)** — Full data licensing terms including AI training restrictions.
+
+### Trademark notice
+
+The names "Korvo" and "Korvo Atlas", and any associated logos, marks, or branding, are trademarks of Snab Limited (trading as Korvo) and are not granted under this repository's open-source license.
+
+---
+
+_Korvo Atlas is maintained by [Snab Limited](https://korvo.io) (trading as Korvo), registered in England and Wales (Company No. 16006744)._

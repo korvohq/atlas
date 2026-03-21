@@ -1,6 +1,6 @@
 {
   "name": "@korvo/atlas",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Korvo Atlas — Verifiable research infrastructure for humans and AI.",
   "main": "dist/server.js",
   "scripts": {
@@ -16,9 +16,15 @@
     "type": "git",
     "url": "git+https://github.com/korvohq/atlas.git"
   },
-  "keywords": ["research", "knowledge-graph", "verifiable", "AI", "open-source"],
+  "keywords": [
+    "research",
+    "knowledge-graph",
+    "verifiable",
+    "AI",
+    "open-source"
+  ],
   "author": "Korvo",
-  "license": "Apache-2.0",
+  "license": "AGPL-3.0-only",
   "type": "commonjs",
   "bugs": {
     "url": "https://github.com/korvohq/atlas/issues"
@@ -30,6 +36,7 @@
     "better-sqlite3": "^12.8.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.3.1",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

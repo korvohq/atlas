@@ -130,5 +130,5 @@ Be respectful. We're building public research infrastructure — that starts wit
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the [Apache License 2.0](./LICENSE).
+By contributing, you agree that your contributions will be licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](./LICENSE). You also agree to the terms of the [Contributor License Agreement (CLA)](./CLA.md), which allows Korvo (the company) to use your contributions in its commercial products under a separate license.
 

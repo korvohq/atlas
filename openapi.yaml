@@ -14,8 +14,8 @@ info:
     - Pass via header: `Authorization: Bearer <api-key>`
   version: 0.2.0
   license:
-    name: Apache 2.0
-    url: https://www.apache.org/licenses/LICENSE-2.0
+    name: AGPL-3.0
+    url: https://www.gnu.org/licenses/agpl-3.0.html
   contact:
     name: Korvo
     url: https://github.com/korvohq/atlas

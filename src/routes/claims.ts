@@ -1,20 +1,50 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuid } from 'uuid';
-import { getDb } from '../db/database';
+import { getDb, syncClaimSources } from '../db/database';
 import { validateClaim } from '../validation';
 
 type Row = Record<string, any>;
 
 const router = Router();
 
-router.get('/', (_req: Request, res: Response) => {
-  const rows = getDb().prepare('SELECT * FROM claims ORDER BY createdAt DESC').all() as Row[];
+router.get('/', (req: Request, res: Response) => {
+  const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+  const offset = parseInt(req.query.offset as string) || 0;
+  const status = req.query.status as string;
+  const confidence = req.query.confidence as string;
+  const q = req.query.q as string;
+
+  let query = 'SELECT * FROM claims';
+  const conditions: string[] = [];
+  const params: any[] = [];
+
+  if (status) { conditions.push('status = ?'); params.push(status); }
+  if (confidence) { conditions.push('confidence = ?'); params.push(confidence); }
+
+  if (q) {
+    const ftsIds = getDb().prepare("SELECT id FROM claims_fts WHERE claims_fts MATCH ? LIMIT ?").all(q, limit) as Row[];
+    if (ftsIds.length > 0) {
+      conditions.push(`id IN (${ftsIds.map(() => '?').join(',')})`);
+      params.push(...ftsIds.map(r => r.id));
+    } else {
+      return res.json({ data: [], total: 0, limit, offset });
+    }
+  }
+
+  if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
+  query += ' ORDER BY createdAt DESC LIMIT ? OFFSET ?';
+  params.push(limit, offset);
+
+  const rows = getDb().prepare(query).all(...params) as Row[];
   const claims = rows.map((r) => ({
     ...r,
     sourceIds: JSON.parse(r.sourceIds || '[]'),
     tags: JSON.parse(r.tags || '[]'),
   }));
-  res.json(claims);
+
+  const total = (getDb().prepare('SELECT COUNT(*) as total FROM claims').get() as Row).total;
+
+  res.json({ data: claims, total, limit, offset });
 });
 
 router.get('/:id', (req: Request, res: Response) => {
@@ -50,6 +80,9 @@ router.post('/', (req: Request, res: Response) => {
     claim.createdBy || null, claim.createdAt, claim.updatedAt
   );
 
+  // Sync junction table
+  syncClaimSources(claim.id, claim.sourceIds);
+
   res.status(201).json(claim);
 });
 
@@ -79,6 +112,9 @@ router.patch('/:id', (req: Request, res: Response) => {
     updated.status, JSON.stringify(updated.tags || []),
     updated.createdBy || null, updated.updatedAt, updated.id
   );
+
+  // Sync junction table
+  syncClaimSources(updated.id, updated.sourceIds);
 
   res.json(updated);
 });

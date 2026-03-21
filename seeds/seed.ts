@@ -171,13 +171,24 @@ console.log(`✅ Seeded ${artifacts.length} artifacts`);
 const DEV_ADMIN_KEY = 'atl_dev_admin_000000000000000000000000';
 const DEV_CONTRIBUTOR_KEY = 'atl_dev_contributor_0000000000000000';
 
+const adminKeyId = uuid();
+const contributorKeyId = uuid();
+
 db.prepare(`INSERT INTO api_keys (id, key, name, role, createdAt, revokedAt)
-  VALUES (?, ?, ?, ?, ?, ?)`).run(uuid(), DEV_ADMIN_KEY, 'Dev Admin', 'admin', now, null);
+  VALUES (?, ?, ?, ?, ?, ?)`).run(adminKeyId, DEV_ADMIN_KEY, 'Dev Admin', 'admin', now, null);
 db.prepare(`INSERT INTO api_keys (id, key, name, role, createdAt, revokedAt)
-  VALUES (?, ?, ?, ?, ?, ?)`).run(uuid(), DEV_CONTRIBUTOR_KEY, 'Dev Contributor', 'contributor', now, null);
+  VALUES (?, ?, ?, ?, ?, ?)`).run(contributorKeyId, DEV_CONTRIBUTOR_KEY, 'Dev Contributor', 'contributor', now, null);
+
+// Give the contributor 5 free credits to start
+db.prepare(`INSERT INTO publish_credits (apiKeyId, credits, updatedAt) VALUES (?, ?, ?)`)
+  .run(contributorKeyId, 5, now);
+db.prepare(`INSERT INTO credit_transactions (id, apiKeyId, amount, type, description, createdAt)
+  VALUES (?, ?, ?, ?, ?, ?)`)
+  .run(uuid(), contributorKeyId, 5, 'grant', 'Welcome bonus — 5 free publish credits', now);
+
 console.log(`✅ Seeded 2 API keys`);
-console.log(`   Admin key:       ${DEV_ADMIN_KEY}`);
-console.log(`   Contributor key:  ${DEV_CONTRIBUTOR_KEY}`);
+console.log(`   Admin key:       ${DEV_ADMIN_KEY} (unlimited — admin bypass)`);
+console.log(`   Contributor key:  ${DEV_CONTRIBUTOR_KEY} (5 credits)`);
 
 // ── Challenges ──────────────────────────────────────────────
 const challenges = [

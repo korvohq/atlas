@@ -35,6 +35,15 @@
       "default": "open",
       "description": "Current resolution state of the challenge."
     },
+    "resolvedBy": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The validator or admin who resolved this challenge."
+    },
+    "resolutionNote": {
+      "type": "string",
+      "description": "Explanation of how/why the challenge was resolved."
+    },
     "createdAt": {
       "type": "string",
       "format": "date-time"
