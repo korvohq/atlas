@@ -10,6 +10,8 @@ It is not a blockchain gimmick.
 
 Korvo Atlas exists to make research more credible, more structured, and more reusable.
 
+> **🌐 IPFS Integration** — Atlas uses content-addressed storage via [IPFS](https://ipfs.tech) for published research artifacts. Every artifact bundle (claims + sources + metadata) is hashed, stored on IPFS, and anchored on-chain — making research independently retrievable and verifiable by anyone, without trusting the Atlas API. The integration is implemented via a pluggable `StorageAdapter` interface, allowing seamless switching between local and decentralized storage. [See configuration →](#ipfs-configuration)
+
 ---
 
 ## Mission
@@ -273,15 +275,47 @@ Draft artifact → Bundle (artifact + claims + sources) → SHA-256 hash → IPF
 |----------|-------------|
 | `POST /api/publish/:artifactId` | Publish an artifact to chain |
 | `GET /api/publish/:artifactId/verify` | Verify against on-chain proof |
+| `GET /api/publish/:artifactId/bundle` | Retrieve full bundle from IPFS |
 | `GET /api/publish/chain-records` | List all chain records |
+| `GET /api/publish/ipfs/health` | Check IPFS node connectivity |
 
 The chain layer stores **proof only** (content hash + IPFS pointer). Full content lives on IPFS. Atlas is the searchable index.
+
+Anyone with a CID can retrieve the bundle directly from any IPFS gateway — no Atlas API needed:
+
+```bash
+curl https://ipfs.io/ipfs/<cid>
+```
 
 **Verify CLI** — independently verify any published artifact:
 
 ```bash
 npm run verify -- <artifactId>
 ```
+
+---
+
+## IPFS configuration
+
+IPFS integration is **opt-in** and controlled via environment variables. By default, Atlas uses a local storage adapter for development.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ATLAS_STORAGE_PROVIDER` | `local` | Set to `ipfs` to enable real IPFS |
+| `ATLAS_IPFS_API_URL` | `http://localhost:5001` | Kubo RPC API endpoint |
+| `ATLAS_IPFS_GATEWAY_URL` | `http://localhost:8080` | Public gateway for CID URLs |
+| `ATLAS_IPFS_TIMEOUT` | `30000` | Timeout for IPFS operations (ms) |
+
+**Quick start with Docker:**
+
+```bash
+docker compose up -d                        # Start local IPFS node
+export ATLAS_STORAGE_PROVIDER=ipfs          # Enable IPFS adapter
+npm run dev                                 # Start Atlas
+curl -X POST http://localhost:5001/api/v0/id  # Verify IPFS is running
+```
+
+The pluggable `StorageAdapter` interface means you can swap backends (local, IPFS, Arweave) without changing any application code.
 
 ---
 

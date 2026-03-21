@@ -4,15 +4,20 @@
  * Publishing costs 1 credit per artifact (like gas on Ethereum).
  * Reads and verification are always free.
  *
- * POST /api/publish/:artifactId        — publish (costs 1 credit)
+ * POST /api/publish/:artifactId         — publish (costs 1 credit)
  * GET  /api/publish/:artifactId/verify  — verify (free)
+ * GET  /api/publish/:artifactId/bundle  — retrieve full bundle from storage (free)
  * GET  /api/publish/chain-records       — list records (free)
+ * GET  /api/publish/ipfs/health         — IPFS node health check (free)
  */
 
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/database';
 import { publishToChain, verifyArtifact } from '../chain';
 import { getCredits, deductCredit } from '../chain/pricing';
+import { IpfsStorageAdapter } from '../chain/ipfs-adapter';
+import { LocalStorageAdapter } from '../chain/local-adapter';
+import { config } from '../config';
 
 type Row = Record<string, any>;
 
@@ -94,6 +99,72 @@ router.get('/chain-records', (_req: Request, res: Response) => {
     .prepare('SELECT * FROM chain_records ORDER BY publishedAt DESC')
     .all() as Row[];
   res.json(rows);
+});
+
+/**
+ * GET /api/publish/ipfs/health
+ * Check if the IPFS node is reachable (only meaningful when using IPFS provider).
+ */
+router.get('/ipfs/health', async (_req: Request, res: Response) => {
+  if (config.storageProvider !== 'ipfs') {
+    return res.json({
+      provider: 'local',
+      message: 'Using local storage adapter. Set ATLAS_STORAGE_PROVIDER=ipfs to enable IPFS.',
+    });
+  }
+
+  const ipfs = new IpfsStorageAdapter();
+  const healthy = await ipfs.isHealthy();
+  const status = healthy ? 200 : 503;
+  res.status(status).json({
+    provider: 'ipfs',
+    healthy,
+    apiUrl: config.ipfs.apiUrl,
+    gatewayUrl: config.ipfs.gatewayUrl,
+  });
+});
+
+/**
+ * GET /api/publish/:artifactId/bundle
+ * Retrieve the full published bundle from decentralized storage.
+ * Returns the exact JSON that was hashed and anchored on-chain.
+ */
+router.get('/:artifactId/bundle', async (req: Request, res: Response) => {
+  try {
+    const artifactId = req.params.artifactId as string;
+    const artifact = getDb()
+      .prepare('SELECT ipfsCid, txHash, contentHash FROM artifacts WHERE id = ?')
+      .get(artifactId) as Row | undefined;
+
+    if (!artifact) {
+      return res.status(404).json({ error: 'Artifact not found' });
+    }
+
+    if (!artifact.ipfsCid) {
+      return res.status(404).json({
+        error: 'Artifact has not been published. No bundle available.',
+        hint: 'Publish first with POST /api/publish/:artifactId',
+      });
+    }
+
+    // Use the appropriate storage adapter to retrieve the bundle
+    const storage = config.storageProvider === 'ipfs'
+      ? new IpfsStorageAdapter()
+      : new LocalStorageAdapter();
+
+    const content = await storage.retrieve(artifact.ipfsCid);
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('X-Content-Hash', artifact.contentHash || '');
+    res.setHeader('X-IPFS-CID', artifact.ipfsCid);
+    res.send(content);
+  } catch (err: any) {
+    const status = err.message?.includes('not found') ? 404 : 502;
+    res.status(status).json({
+      error: 'Failed to retrieve bundle from storage',
+      detail: err.message,
+    });
+  }
 });
 
 export default router;

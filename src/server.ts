@@ -15,6 +15,8 @@ import endorsementsRouter from './routes/endorsements';
 import keysRouter from './routes/keys';
 import creditsRouter from './routes/credits';
 import searchRouter from './routes/search';
+import { config } from './config';
+import { IpfsStorageAdapter } from './chain/ipfs-adapter';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -62,8 +64,20 @@ app.get('/robots.txt', (_req, res) => {
 });
 
 // Health check
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'korvo-atlas', version: '0.3.0' });
+app.get('/health', async (_req, res) => {
+  const health: Record<string, any> = {
+    status: 'ok',
+    service: 'korvo-atlas',
+    version: '0.3.0',
+    storageProvider: config.storageProvider,
+  };
+
+  if (config.storageProvider === 'ipfs') {
+    const ipfs = new IpfsStorageAdapter();
+    health.ipfs = { healthy: await ipfs.isHealthy(), apiUrl: config.ipfs.apiUrl };
+  }
+
+  res.json(health);
 });
 
 // API routes (v1 — canonical)

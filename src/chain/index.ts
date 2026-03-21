@@ -6,6 +6,7 @@
 export { publishToChain, verifyArtifact } from './publish';
 export { hashBundle, verifyHash } from './hash';
 export { PRICING, getCredits, addCredits, deductCredit } from './pricing';
+export { IpfsStorageAdapter } from './ipfs-adapter';
 export type {
   ChainNetwork,
   ChainAdapter,

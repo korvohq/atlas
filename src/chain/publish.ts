@@ -21,18 +21,22 @@ import {
   StorageAdapter,
 } from './types';
 import { LocalChainAdapter, LocalStorageAdapter } from './local-adapter';
+import { IpfsStorageAdapter } from './ipfs-adapter';
+import { config } from '../config';
 
 type Row = Record<string, any>;
 
-// ── Adapter selection (swap these for production) ───────────────
+// ── Adapter selection (env-driven) ──────────────────────────────
 
 function getStorageAdapter(): StorageAdapter {
-  // TODO: check process.env.ATLAS_STORAGE_PROVIDER for 'ipfs' | 'arweave'
+  if (config.storageProvider === 'ipfs') {
+    return new IpfsStorageAdapter();
+  }
   return new LocalStorageAdapter();
 }
 
 function getChainAdapter(): ChainAdapter {
-  // TODO: check process.env.ATLAS_CHAIN_NETWORK for 'base' | 'arbitrum' | etc.
+  // TODO: check config.chainNetwork for 'base' | 'arbitrum' | etc.
   return new LocalChainAdapter();
 }
 
