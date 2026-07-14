@@ -7,25 +7,52 @@
  */
 
 import crypto from 'crypto';
+import canonicalize from 'canonicalize';
 import { ArtifactBundle } from './types';
+
+export const CANONICALIZATION_VERSION = 'rfc8785-jcs-v1' as const;
+export type CanonicalizationVersion = typeof CANONICALIZATION_VERSION;
+
+/** Canonicalize JSON recursively using the versioned Atlas integrity algorithm. */
+export function canonicalizeJson(
+  value: unknown,
+  version: CanonicalizationVersion = CANONICALIZATION_VERSION,
+): string {
+  if (version !== CANONICALIZATION_VERSION) {
+    throw new Error(`Unsupported canonicalization version: ${version}`);
+  }
+
+  const canonical = canonicalize(value);
+  if (canonical === undefined) {
+    throw new TypeError('The value cannot be represented as canonical JSON');
+  }
+  return canonical;
+}
 
 /**
  * Produce a deterministic SHA-256 hash of an artifact bundle.
  *
- * The bundle is JSON-stringified with sorted keys to ensure
- * the same content always produces the same hash, regardless
- * of property insertion order.
+ * RFC 8785 recursively sorts object properties while preserving array order.
  */
-export function hashBundle(bundle: ArtifactBundle): string {
-  const canonical = JSON.stringify(bundle, Object.keys(bundle).sort());
-  const hash = crypto.createHash('sha256').update(canonical, 'utf8').digest('hex');
+export function hashBundle(
+  bundle: ArtifactBundle,
+  version: CanonicalizationVersion = CANONICALIZATION_VERSION,
+): string {
+  const canonicalBytes = Buffer.from(canonicalizeJson(bundle, version), 'utf8');
+  const hash = crypto.createHash('sha256').update(canonicalBytes).digest('hex');
   return `sha256:${hash}`;
 }
 
 /**
  * Verify that a bundle matches an expected content hash.
  */
-export function verifyHash(bundle: ArtifactBundle, expectedHash: string): boolean {
-  return hashBundle(bundle) === expectedHash;
+export function verifyHash(
+  bundle: ArtifactBundle,
+  expectedHash: string,
+  version: CanonicalizationVersion = CANONICALIZATION_VERSION,
+): boolean {
+  const actual = Buffer.from(hashBundle(bundle, version), 'utf8');
+  const expected = Buffer.from(expectedHash, 'utf8');
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
 }
 

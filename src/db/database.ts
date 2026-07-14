@@ -5,17 +5,22 @@ const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', '..', 'atlas.d
 
 let db: Database.Database;
 
+/** Open and configure an Atlas SQLite connection without changing the process default. */
+export function createDatabase(filename: string = DB_PATH): Database.Database {
+  const connection = new Database(filename);
+  connection.pragma('journal_mode = WAL');
+  connection.pragma('foreign_keys = ON');
+  return connection;
+}
+
 export function getDb(): Database.Database {
   if (!db) {
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
-    db.pragma('foreign_keys = ON');
+    db = createDatabase();
   }
   return db;
 }
 
-export function initDb(): void {
-  const conn = getDb();
+export function initDb(conn: Database.Database = getDb()): void {
 
   conn.exec(`
     CREATE TABLE IF NOT EXISTS questions (
@@ -350,8 +355,11 @@ export function initDb(): void {
  * Sync junction tables from JSON array columns.
  * Call after inserting/updating a claim or artifact to keep junction tables populated.
  */
-export function syncClaimSources(claimId: string, sourceIds: string[]): void {
-  const conn = getDb();
+export function syncClaimSources(
+  claimId: string,
+  sourceIds: string[],
+  conn: Database.Database = getDb(),
+): void {
   conn.prepare('DELETE FROM claim_sources WHERE claimId = ?').run(claimId);
   const insert = conn.prepare('INSERT OR IGNORE INTO claim_sources (claimId, sourceId) VALUES (?, ?)');
   for (const sid of sourceIds) {
@@ -359,8 +367,12 @@ export function syncClaimSources(claimId: string, sourceIds: string[]): void {
   }
 }
 
-export function syncArtifactRelations(artifactId: string, claimIds: string[], sourceIds: string[]): void {
-  const conn = getDb();
+export function syncArtifactRelations(
+  artifactId: string,
+  claimIds: string[],
+  sourceIds: string[],
+  conn: Database.Database = getDb(),
+): void {
   conn.prepare('DELETE FROM artifact_claims WHERE artifactId = ?').run(artifactId);
   conn.prepare('DELETE FROM artifact_sources WHERE artifactId = ?').run(artifactId);
   const insertClaim = conn.prepare('INSERT OR IGNORE INTO artifact_claims (artifactId, claimId) VALUES (?, ?)');

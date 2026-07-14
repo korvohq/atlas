@@ -12,15 +12,14 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { getDb } from '../db/database';
+import { AppDependencies } from '../app-dependencies';
 import { publishToChain, verifyArtifact } from '../chain';
 import { getCredits, deductCredit } from '../chain/pricing';
-import { IpfsStorageAdapter } from '../chain/ipfs-adapter';
-import { LocalStorageAdapter } from '../chain/local-adapter';
-import { config } from '../config';
 
 type Row = Record<string, any>;
 
+export function createPublishRouter(dependencies: AppDependencies): Router {
+const { db, storage, storageInfo, now, generateId } = dependencies;
 const router = Router();
 
 /**
@@ -35,7 +34,7 @@ router.post('/:artifactId', async (req: Request, res: Response) => {
 
     // ── Credit check (admins bypass for dev/testing) ──
     if (req.apiKey && req.apiKey.role !== 'admin') {
-      const credits = getCredits(getDb(), req.apiKey.id);
+      const credits = getCredits(db, req.apiKey.id);
       if (credits <= 0) {
         return res.status(402).json({
           error: 'Insufficient publish credits.',
@@ -46,18 +45,19 @@ router.post('/:artifactId', async (req: Request, res: Response) => {
       }
 
       // Deduct the credit
-      const success = deductCredit(getDb(), req.apiKey.id);
+      const success = deductCredit(db, req.apiKey.id, now, generateId);
       if (!success) {
         return res.status(402).json({ error: 'Failed to deduct credit. Please try again.' });
       }
     }
 
-    const result = await publishToChain(artifactId, publishedBy);
+    const result = await publishToChain(artifactId, publishedBy, dependencies);
 
     res.status(201).json({
       message: 'Artifact published to chain successfully',
       artifactId,
       contentHash: result.contentHash,
+      canonicalizationVersion: result.bundle.canonicalizationVersion,
       ipfsCid: result.storage.cid,
       txHash: result.chain.txHash,
       chain: result.chain.chain,
@@ -66,7 +66,7 @@ router.post('/:artifactId', async (req: Request, res: Response) => {
       storageSize: result.storage.size,
       publishedAt: result.chain.timestamp,
       creditCharged: req.apiKey?.role !== 'admin' ? 1 : 0,
-      creditsRemaining: req.apiKey ? getCredits(getDb(), req.apiKey.id) : null,
+      creditsRemaining: req.apiKey ? getCredits(db, req.apiKey.id) : null,
     });
   } catch (err: any) {
     const status = err.message?.includes('not found') ? 404
@@ -82,7 +82,7 @@ router.post('/:artifactId', async (req: Request, res: Response) => {
  */
 router.get('/:artifactId/verify', async (req: Request, res: Response) => {
   try {
-    const result = await verifyArtifact(req.params.artifactId as string);
+    const result = await verifyArtifact(req.params.artifactId as string, dependencies);
     const status = result.verified ? 200 : 422;
     res.status(status).json(result);
   } catch (err: any) {
@@ -95,7 +95,7 @@ router.get('/:artifactId/verify', async (req: Request, res: Response) => {
  * List all on-chain publication records.
  */
 router.get('/chain-records', (_req: Request, res: Response) => {
-  const rows = getDb()
+  const rows = db
     .prepare('SELECT * FROM chain_records ORDER BY publishedAt DESC')
     .all() as Row[];
   res.json(rows);
@@ -106,21 +106,20 @@ router.get('/chain-records', (_req: Request, res: Response) => {
  * Check if the IPFS node is reachable (only meaningful when using IPFS provider).
  */
 router.get('/ipfs/health', async (_req: Request, res: Response) => {
-  if (config.storageProvider !== 'ipfs') {
+  if (storageInfo.provider !== 'ipfs') {
     return res.json({
       provider: 'local',
       message: 'Using local storage adapter. Set ATLAS_STORAGE_PROVIDER=ipfs to enable IPFS.',
     });
   }
 
-  const ipfs = new IpfsStorageAdapter();
-  const healthy = await ipfs.isHealthy();
+  const healthy = storageInfo.isHealthy ? await storageInfo.isHealthy() : false;
   const status = healthy ? 200 : 503;
   res.status(status).json({
     provider: 'ipfs',
     healthy,
-    apiUrl: config.ipfs.apiUrl,
-    gatewayUrl: config.ipfs.gatewayUrl,
+    apiUrl: storageInfo.apiUrl,
+    gatewayUrl: storageInfo.gatewayUrl,
   });
 });
 
@@ -132,7 +131,7 @@ router.get('/ipfs/health', async (_req: Request, res: Response) => {
 router.get('/:artifactId/bundle', async (req: Request, res: Response) => {
   try {
     const artifactId = req.params.artifactId as string;
-    const artifact = getDb()
+    const artifact = db
       .prepare('SELECT ipfsCid, txHash, contentHash FROM artifacts WHERE id = ?')
       .get(artifactId) as Row | undefined;
 
@@ -146,11 +145,6 @@ router.get('/:artifactId/bundle', async (req: Request, res: Response) => {
         hint: 'Publish first with POST /api/publish/:artifactId',
       });
     }
-
-    // Use the appropriate storage adapter to retrieve the bundle
-    const storage = config.storageProvider === 'ipfs'
-      ? new IpfsStorageAdapter()
-      : new LocalStorageAdapter();
 
     const content = await storage.retrieve(artifact.ipfsCid);
 
@@ -167,7 +161,8 @@ router.get('/:artifactId/bundle', async (req: Request, res: Response) => {
   }
 });
 
-export default router;
+return router;
+}
 
 
 

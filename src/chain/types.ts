@@ -13,6 +13,8 @@ export type ChainNetwork = 'base' | 'arbitrum' | 'solana' | 'polygon' | 'local';
 /** The bundle that gets hashed and stored on IPFS before anchoring */
 export interface ArtifactBundle {
   schemaVersion: string;
+  /** Absent only on legacy bundles whose hash covered top-level fields only. */
+  canonicalizationVersion?: string;
   artifact: {
     id: string;
     title: string;

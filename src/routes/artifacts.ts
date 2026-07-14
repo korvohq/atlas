@@ -1,10 +1,11 @@
 import { Router, Request, Response } from 'express';
-import { v4 as uuid } from 'uuid';
-import { getDb, syncArtifactRelations } from '../db/database';
+import { RouteDependencies } from '../app-dependencies';
+import { syncArtifactRelations } from '../db/database';
 import { validateArtifact } from '../validation';
 
 type Row = Record<string, any>;
 
+export function createArtifactsRouter({ db, now, generateId }: RouteDependencies): Router {
 const router = Router();
 
 router.get('/', (req: Request, res: Response) => {
@@ -26,7 +27,7 @@ router.get('/', (req: Request, res: Response) => {
   if (reviewStatus) { conditions.push('reviewStatus = ?'); params.push(reviewStatus); }
 
   if (q) {
-    const ftsIds = getDb().prepare("SELECT id FROM artifacts_fts WHERE artifacts_fts MATCH ? LIMIT ?").all(q, limit) as Row[];
+    const ftsIds = db.prepare("SELECT id FROM artifacts_fts WHERE artifacts_fts MATCH ? LIMIT ?").all(q, limit) as Row[];
     if (ftsIds.length > 0) {
       conditions.push(`id IN (${ftsIds.map(() => '?').join(',')})`);
       params.push(...ftsIds.map(r => r.id));
@@ -39,7 +40,7 @@ router.get('/', (req: Request, res: Response) => {
   query += ' ORDER BY createdAt DESC LIMIT ? OFFSET ?';
   params.push(limit, offset);
 
-  const rows = getDb().prepare(query).all(...params) as Row[];
+  const rows = db.prepare(query).all(...params) as Row[];
   const artifacts = rows.map((r) => ({
     ...r,
     claimIds: JSON.parse(r.claimIds || '[]'),
@@ -48,12 +49,12 @@ router.get('/', (req: Request, res: Response) => {
     onChain: !!r.txHash,
   }));
 
-  const total = (getDb().prepare('SELECT COUNT(*) as total FROM artifacts').get() as Row).total;
+  const total = (db.prepare('SELECT COUNT(*) as total FROM artifacts').get() as Row).total;
   res.json({ data: artifacts, total, limit, offset });
 });
 
 router.get('/:id', (req: Request, res: Response) => {
-  const row = getDb().prepare('SELECT * FROM artifacts WHERE id = ?').get(req.params.id) as Row | undefined;
+  const row = db.prepare('SELECT * FROM artifacts WHERE id = ?').get(req.params.id) as Row | undefined;
   if (!row) return res.status(404).json({ error: 'Artifact not found' });
   res.json({
     ...row,
@@ -65,21 +66,21 @@ router.get('/:id', (req: Request, res: Response) => {
 });
 
 router.post('/', (req: Request, res: Response) => {
-  const now = new Date().toISOString();
+  const timestamp = now().toISOString();
   const artifact: Row = {
-    id: uuid(),
+    id: generateId(),
     ...req.body,
     status: req.body.status || 'draft',
     origin: req.body.origin || 'human',
     reviewStatus: req.body.reviewStatus || 'unreviewed',
-    createdAt: now,
-    updatedAt: now,
+    createdAt: timestamp,
+    updatedAt: timestamp,
   };
 
   const valid = validateArtifact(artifact);
   if (!valid) return res.status(400).json({ errors: validateArtifact.errors });
 
-  getDb().prepare(`
+  db.prepare(`
     INSERT INTO artifacts (id, title, type, body, summary, questionId, claimIds, sourceIds, status, tags, origin, reviewStatus, createdBy, createdAt, updatedAt)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
@@ -92,13 +93,12 @@ router.post('/', (req: Request, res: Response) => {
   );
 
   // Sync junction tables
-  syncArtifactRelations(artifact.id, artifact.claimIds, artifact.sourceIds);
+  syncArtifactRelations(artifact.id, artifact.claimIds, artifact.sourceIds, db);
 
   res.status(201).json(artifact);
 });
 
 router.patch('/:id', (req: Request, res: Response) => {
-  const db = getDb();
   const existing: any = db.prepare('SELECT * FROM artifacts WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Artifact not found' });
 
@@ -116,10 +116,10 @@ router.patch('/:id', (req: Request, res: Response) => {
     INSERT INTO artifact_revisions (id, artifactId, version, snapshot, changedBy, changeNote, createdAt)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(
-    uuid(), existing.id, nextVersion, JSON.stringify(snapshot),
+    generateId(), existing.id, nextVersion, JSON.stringify(snapshot),
     req.body.changedBy || req.apiKey?.name || null,
     req.body.changeNote || null,
-    new Date().toISOString()
+    now().toISOString()
   );
 
   // ── Apply the update (strip revision-only fields) ──
@@ -132,7 +132,7 @@ router.patch('/:id', (req: Request, res: Response) => {
     ...artifactFields,
     id: existing.id,
     createdAt: existing.createdAt,
-    updatedAt: new Date().toISOString(),
+    updatedAt: now().toISOString(),
   };
 
   // Remove null chain fields — they're set by the publish workflow, not user PATCH
@@ -157,7 +157,7 @@ router.patch('/:id', (req: Request, res: Response) => {
   );
 
   // Sync junction tables
-  syncArtifactRelations(updated.id, updated.claimIds, updated.sourceIds);
+  syncArtifactRelations(updated.id, updated.claimIds, updated.sourceIds, db);
 
   res.json({ ...updated, _revision: nextVersion });
 });
@@ -167,10 +167,10 @@ router.patch('/:id', (req: Request, res: Response) => {
  */
 router.get('/:id/history', (req: Request, res: Response) => {
   const artifactId = req.params.id as string;
-  const artifact = getDb().prepare('SELECT id, title FROM artifacts WHERE id = ?').get(artifactId) as Row | undefined;
+  const artifact = db.prepare('SELECT id, title FROM artifacts WHERE id = ?').get(artifactId) as Row | undefined;
   if (!artifact) return res.status(404).json({ error: 'Artifact not found' });
 
-  const revisions = getDb()
+  const revisions = db
     .prepare('SELECT * FROM artifact_revisions WHERE artifactId = ? ORDER BY version DESC')
     .all(artifactId) as Row[];
 
@@ -188,10 +188,11 @@ router.get('/:id/history', (req: Request, res: Response) => {
 });
 
 router.delete('/:id', (req: Request, res: Response) => {
-  const result = getDb().prepare('DELETE FROM artifacts WHERE id = ?').run(req.params.id);
+  const result = db.prepare('DELETE FROM artifacts WHERE id = ?').run(req.params.id);
   if (result.changes === 0) return res.status(404).json({ error: 'Artifact not found' });
   res.status(204).send();
 });
 
-export default router;
+return router;
+}
 

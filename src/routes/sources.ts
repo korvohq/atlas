@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { v4 as uuid } from 'uuid';
-import { getDb } from '../db/database';
+import { RouteDependencies } from '../app-dependencies';
 import { validateSource } from '../validation';
 
 type Row = Record<string, any>;
 
+export function createSourcesRouter({ db, now, generateId }: RouteDependencies): Router {
 const router = Router();
 
 router.get('/', (req: Request, res: Response) => {
@@ -24,7 +24,7 @@ router.get('/', (req: Request, res: Response) => {
   if (reviewStatus) { conditions.push('reviewStatus = ?'); params.push(reviewStatus); }
 
   if (q) {
-    const ftsIds = getDb().prepare("SELECT id FROM sources_fts WHERE sources_fts MATCH ? LIMIT ?").all(q, limit) as Row[];
+    const ftsIds = db.prepare("SELECT id FROM sources_fts WHERE sources_fts MATCH ? LIMIT ?").all(q, limit) as Row[];
     if (ftsIds.length > 0) {
       conditions.push(`id IN (${ftsIds.map(() => '?').join(',')})`);
       params.push(...ftsIds.map(r => r.id));
@@ -37,33 +37,33 @@ router.get('/', (req: Request, res: Response) => {
   query += ' ORDER BY createdAt DESC LIMIT ? OFFSET ?';
   params.push(limit, offset);
 
-  const rows = getDb().prepare(query).all(...params) as Row[];
+  const rows = db.prepare(query).all(...params) as Row[];
   const sources = rows.map((r) => ({ ...r, tags: JSON.parse(r.tags || '[]') }));
-  const total = (getDb().prepare('SELECT COUNT(*) as total FROM sources').get() as Row).total;
+  const total = (db.prepare('SELECT COUNT(*) as total FROM sources').get() as Row).total;
   res.json({ data: sources, total, limit, offset });
 });
 
 router.get('/:id', (req: Request, res: Response) => {
-  const row = getDb().prepare('SELECT * FROM sources WHERE id = ?').get(req.params.id) as Row | undefined;
+  const row = db.prepare('SELECT * FROM sources WHERE id = ?').get(req.params.id) as Row | undefined;
   if (!row) return res.status(404).json({ error: 'Source not found' });
   res.json({ ...row, tags: JSON.parse(row.tags || '[]') });
 });
 
 router.post('/', (req: Request, res: Response) => {
-  const now = new Date().toISOString();
+  const timestamp = now().toISOString();
   const source: Row = {
-    id: uuid(),
+    id: generateId(),
     ...req.body,
     origin: req.body.origin || 'human',
     reviewStatus: req.body.reviewStatus || 'unreviewed',
-    createdAt: now,
-    updatedAt: now,
+    createdAt: timestamp,
+    updatedAt: timestamp,
   };
 
   const valid = validateSource(source);
   if (!valid) return res.status(400).json({ errors: validateSource.errors });
 
-  getDb().prepare(`
+  db.prepare(`
     INSERT INTO sources (id, type, title, url, author, publishedAt, retrievedAt, contentHash, tags, origin, reviewStatus, createdBy, createdAt, updatedAt)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
@@ -78,7 +78,7 @@ router.post('/', (req: Request, res: Response) => {
 });
 
 router.patch('/:id', (req: Request, res: Response) => {
-  const existing: any = getDb().prepare('SELECT * FROM sources WHERE id = ?').get(req.params.id);
+  const existing: any = db.prepare('SELECT * FROM sources WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Source not found' });
 
   const updated: Row = {
@@ -87,13 +87,13 @@ router.patch('/:id', (req: Request, res: Response) => {
     ...req.body,
     id: existing.id,
     createdAt: existing.createdAt,
-    updatedAt: new Date().toISOString(),
+    updatedAt: now().toISOString(),
   };
 
   const valid = validateSource(updated);
   if (!valid) return res.status(400).json({ errors: validateSource.errors });
 
-  getDb().prepare(`
+  db.prepare(`
     UPDATE sources SET type = ?, title = ?, url = ?, author = ?, publishedAt = ?, retrievedAt = ?, contentHash = ?, tags = ?, origin = ?, reviewStatus = ?, createdBy = ?, updatedAt = ?
     WHERE id = ?
   `).run(
@@ -108,10 +108,11 @@ router.patch('/:id', (req: Request, res: Response) => {
 });
 
 router.delete('/:id', (req: Request, res: Response) => {
-  const result = getDb().prepare('DELETE FROM sources WHERE id = ?').run(req.params.id);
+  const result = db.prepare('DELETE FROM sources WHERE id = ?').run(req.params.id);
   if (result.changes === 0) return res.status(404).json({ error: 'Source not found' });
   res.status(204).send();
 });
 
-export default router;
+return router;
+}
 

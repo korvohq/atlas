@@ -7,6 +7,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
+import Database from 'better-sqlite3';
 import { getDb } from '../db/database';
 
 type Row = Record<string, any>;
@@ -31,7 +32,12 @@ declare global {
  * Skips auth for GET/HEAD/OPTIONS requests (public reads).
  * Requires valid Bearer token for all write operations.
  */
-export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+function authenticate(
+  db: Database.Database,
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
   const isRead = ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
 
   const authHeader = req.headers.authorization;
@@ -51,7 +57,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     return;
   }
 
-  const row = getDb()
+  const row = db
     .prepare('SELECT id, key, name, role, revokedAt FROM api_keys WHERE key = ?')
     .get(key) as Row | undefined;
 
@@ -70,6 +76,17 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   // Set apiKey on request — available for both reads and writes
   req.apiKey = { id: row.id, name: row.name, role: row.role };
   next();
+}
+
+export function createRequireAuth(db: Database.Database) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    authenticate(db, req, res, next);
+  };
+}
+
+/** Backward-compatible middleware using the process default database. */
+export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  authenticate(getDb(), req, res, next);
 }
 
 /**

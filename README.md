@@ -10,7 +10,23 @@ It is not a blockchain gimmick.
 
 Korvo Atlas exists to make research more credible, more structured, and more reusable.
 
-> **🌐 IPFS Integration** — Atlas uses content-addressed storage via [IPFS](https://ipfs.tech) for published research artifacts. Every artifact bundle (claims + sources + metadata) is hashed, stored on IPFS, and anchored on-chain — making research independently retrievable and verifiable by anyone, without trusting the Atlas API. The integration is implemented via a pluggable `StorageAdapter` interface, allowing seamless switching between local and decentralized storage. [See configuration →](#ipfs-configuration)
+> **Implementation status (audit updated 2026-07-15):** Atlas `0.3.0` is a
+> compiling hosted-API prototype. Local file storage and a local JSON-ledger
+> attestation simulation are the defaults; Kubo/IPFS is opt-in, and no
+> production blockchain adapter exists. The first automated foundation suites
+> now cover app isolation, recursive RFC 8785 canonicalization, publication-byte
+> identity, and legacy-hash classification; full v1 route characterization,
+> migrations, and failure-path coverage are still pending. New development
+> bundles declare `rfc8785-jcs-v1`; unmarked v1 hashes remain explicitly
+> top-level-only and must not be presented as full-bundle integrity proofs. See the
+> [Atlas v2 and Medha integration PRD](docs/ATLAS_V2_MEDHA_INTEGRATION_PRD.md)
+> for the verified baseline, remediation plan, and launch gates.
+
+> **🌐 Storage architecture** — Atlas provides a pluggable `StorageAdapter` with
+> local and optional [IPFS](https://ipfs.tech) implementations. The target is
+> independently retrievable, canonically hashed research bundles, but those
+> guarantees remain gated on the v2 canonicalization and publication work.
+> [See configuration →](#ipfs-configuration)
 
 ---
 
@@ -59,7 +75,7 @@ Korvo Atlas is an open-source project for creating a **research graph**.
 At its core, the system connects:
 
 - **Questions**
-- **Entities**
+- **Entities** *(planned for protocol v2; not persisted in `0.3.0`)*
 - **Sources**
 - **Claims**
 - **Research Artifacts**
@@ -255,7 +271,7 @@ The system is centered around eight core objects:
 - **Validator** — a reviewer, contributor, or agent providing verification signals
 - **Challenge** — a dispute raised against a claim, requiring resolution
 - **Endorsement** — a validator's vote of confidence in a claim
-- **Chain Record** — an immutable on-chain proof of a published artifact
+- **Chain Record** — a publication-attestation record; `0.3.0` only simulates this locally
 
 Every object has a formal JSON Schema in `/schemas` and is validated on every write.
 
@@ -263,31 +279,40 @@ Every object has a formal JSON Schema in `/schemas` and is validated on every wr
 
 ---
 
-## Blockchain publish layer
+## Publication and attestation prototype
 
-Atlas can anchor research artifacts on a blockchain for permanent, tamper-proof provenance.
+Atlas `0.3.0` can package artifacts, canonicalize them recursively with RFC 8785,
+write them to local storage or optional IPFS, and record an attestation in a
+local JSON-ledger simulation. It does not currently submit transactions to a
+production blockchain. Immutable revisions, idempotency, migration coverage,
+and complete API/failure-path tests remain mandatory before stronger integrity
+claims.
 
 ```
-Draft artifact → Bundle (artifact + claims + sources) → SHA-256 hash → IPFS upload → Blockchain anchor
+Draft artifact → JCS bundle + SHA-256 → local/IPFS storage → local attestation simulation
 ```
 
 | Endpoint | Description |
 |----------|-------------|
-| `POST /api/publish/:artifactId` | Publish an artifact to chain |
-| `GET /api/publish/:artifactId/verify` | Verify against on-chain proof |
-| `GET /api/publish/:artifactId/bundle` | Retrieve full bundle from IPFS |
-| `GET /api/publish/chain-records` | List all chain records |
-| `GET /api/publish/ipfs/health` | Check IPFS node connectivity |
+| `POST /api/v1/publish/:artifactId` | Run the current development publication workflow |
+| `GET /api/v1/publish/:artifactId/verify` | Verify configured storage against the local attestation record |
+| `GET /api/v1/publish/:artifactId/bundle` | Retrieve a bundle from the configured storage adapter |
+| `GET /api/v1/publish/chain-records` | List local attestation records |
+| `GET /api/v1/publish/ipfs/health` | Check IPFS connectivity when configured |
 
-The chain layer stores **proof only** (content hash + IPFS pointer). Full content lives on IPFS. Atlas is the searchable index.
+The local attestation ledger stores a hash and storage pointer. With the default
+adapter, full content remains in local files. With IPFS configured, content can
+be retrieved by CID. Neither mode proves that a research claim is correct.
 
-Anyone with a CID can retrieve the bundle directly from any IPFS gateway — no Atlas API needed:
+When IPFS mode is enabled and the content remains pinned, anyone with its CID
+can retrieve the bundle from a compatible gateway without the Atlas API:
 
 ```bash
 curl https://ipfs.io/ipfs/<cid>
 ```
 
-**Verify CLI** — independently verify any published artifact:
+**Verify CLI** — check a development publication against its configured storage
+and local attestation record:
 
 ```bash
 npm run verify -- <artifactId>
@@ -315,7 +340,8 @@ npm run dev                                 # Start Atlas
 curl -X POST http://localhost:5001/api/v0/id  # Verify IPFS is running
 ```
 
-The pluggable `StorageAdapter` interface means you can swap backends (local, IPFS, Arweave) without changing any application code.
+The pluggable `StorageAdapter` interface currently has local and IPFS
+implementations. Other backends require new adapters and tests.
 
 ---
 
@@ -327,10 +353,10 @@ Validators can dispute claims with evidence. When a challenge is created, the li
 
 | Endpoint | Description |
 |----------|-------------|
-| `POST /api/challenges` | Challenge a claim |
-| `GET /api/challenges` | List all challenges |
-| `GET /api/challenges/claim/:claimId` | Challenges for a specific claim |
-| `PATCH /api/challenges/:id` | Update challenge status |
+| `POST /api/v1/challenges` | Challenge a claim |
+| `GET /api/v1/challenges` | List all challenges |
+| `GET /api/v1/challenges/claim/:claimId` | Challenges for a specific claim |
+| `PATCH /api/v1/challenges/:id` | Update challenge status |
 
 ### Endorsements
 
@@ -338,9 +364,9 @@ Validators can endorse claims with a weight (1–5). The `/claim/:claimId` endpo
 
 | Endpoint | Description |
 |----------|-------------|
-| `POST /api/endorsements` | Endorse a claim |
-| `GET /api/endorsements` | List all endorsements |
-| `GET /api/endorsements/claim/:claimId` | Endorsements + summary for a claim |
+| `POST /api/v1/endorsements` | Endorse a claim |
+| `GET /api/v1/endorsements` | List all endorsements |
+| `GET /api/v1/endorsements/claim/:claimId` | Endorsements + summary for a claim |
 
 ---
 
@@ -350,7 +376,7 @@ Every time an artifact is updated via `PATCH`, a snapshot of the previous versio
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/artifacts/:id/history` | Full revision history with snapshots |
+| `GET /api/v1/artifacts/:id/history` | Full revision history with snapshots |
 
 Pass `changeNote` in PATCH requests to document what was changed.
 
@@ -364,9 +390,9 @@ Pass `changeNote` in PATCH requests to document what was changed.
 
 | Endpoint | Description |
 |----------|-------------|
-| `POST /api/keys` | Create a new API key (admin only) |
-| `GET /api/keys` | List all keys, masked (admin only) |
-| `DELETE /api/keys/:id` | Revoke a key (admin only) |
+| `POST /api/v1/keys` | Create a new API key (admin only) |
+| `GET /api/v1/keys` | List all keys, masked (admin only) |
+| `DELETE /api/v1/keys/:id` | Revoke a key (admin only) |
 
 For local development, the seed script creates a default admin key:
 
@@ -389,6 +415,11 @@ See [`GOVERNANCE.md`](./GOVERNANCE.md) for what is open source (Atlas protocol) 
 ---
 
 ## Roadmap
+
+The executable cross-product plan is
+[`docs/ATLAS_V2_MEDHA_INTEGRATION_PRD.md`](docs/ATLAS_V2_MEDHA_INTEGRATION_PRD.md).
+It distinguishes verified `0.3.0` behavior from target capabilities and must be
+used for implementation and release decisions.
 
 ### Phase 1 — Public research objects
 - publish artifacts
@@ -465,6 +496,11 @@ Korvo Atlas uses a **three-layer licensing model** to protect the code, the data
 - If you run a modified version of Atlas as a network service (e.g. a public API or hosted platform), you **must** release your modifications under the same license.
 - Research data is open with attribution — but bulk scraping for AI model training requires a separate license.
 - This ensures the research infrastructure stays open and contributions flow back to the community.
+
+> **Legal review required:** the project has not yet resolved whether the added
+> AI-training/bulk-use restriction is compatible with representing the data as
+> unmodified CC BY-SA 4.0 and ODbL-licensed material. Treat the current wording
+> as pending specialist legal review; see `AV2-033` in the v2 PRD.
 
 ### Additional policies
 

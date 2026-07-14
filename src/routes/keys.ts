@@ -7,14 +7,11 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { v4 as uuid } from 'uuid';
 import crypto from 'crypto';
-import { getDb } from '../db/database';
+import { RouteDependencies } from '../app-dependencies';
 import { requireRole } from '../middleware/auth';
 
 type Row = Record<string, any>;
-
-const router = Router();
 
 /**
  * Generate a secure API key.
@@ -29,8 +26,11 @@ function maskKey(key: string): string {
   return key.slice(0, 8) + '••••••••' + key.slice(-4);
 }
 
+export function createKeysRouter({ db, now, generateId }: RouteDependencies): Router {
+const router = Router();
+
 router.get('/', requireRole('admin'), (_req: Request, res: Response) => {
-  const rows = getDb().prepare('SELECT * FROM api_keys ORDER BY createdAt DESC').all() as Row[];
+  const rows = db.prepare('SELECT * FROM api_keys ORDER BY createdAt DESC').all() as Row[];
   const masked = rows.map((r) => ({ ...r, key: maskKey(r.key) }));
   res.json(masked);
 });
@@ -47,17 +47,17 @@ router.post('/', requireRole('admin'), (req: Request, res: Response) => {
     return res.status(400).json({ error: `role must be one of: ${validRoles.join(', ')}` });
   }
 
-  const now = new Date().toISOString();
+  const timestamp = now().toISOString();
   const apiKey = {
-    id: uuid(),
+    id: generateId(),
     key: generateKey(),
     name,
     role,
-    createdAt: now,
+    createdAt: timestamp,
     revokedAt: null,
   };
 
-  getDb().prepare(`
+  db.prepare(`
     INSERT INTO api_keys (id, key, name, role, createdAt, revokedAt)
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(apiKey.id, apiKey.key, apiKey.name, apiKey.role, apiKey.createdAt, null);
@@ -71,14 +71,15 @@ router.post('/', requireRole('admin'), (req: Request, res: Response) => {
 
 router.delete('/:id', requireRole('admin'), (req: Request, res: Response) => {
   const id = req.params.id as string;
-  const existing = getDb().prepare('SELECT * FROM api_keys WHERE id = ?').get(id) as Row | undefined;
+  const existing = db.prepare('SELECT * FROM api_keys WHERE id = ?').get(id) as Row | undefined;
   if (!existing) return res.status(404).json({ error: 'API key not found.' });
   if (existing.revokedAt) return res.status(409).json({ error: 'Key is already revoked.' });
 
-  const now = new Date().toISOString();
-  getDb().prepare('UPDATE api_keys SET revokedAt = ? WHERE id = ?').run(now, id);
-  res.json({ message: 'API key revoked.', id, revokedAt: now });
+  const timestamp = now().toISOString();
+  db.prepare('UPDATE api_keys SET revokedAt = ? WHERE id = ?').run(timestamp, id);
+  res.json({ message: 'API key revoked.', id, revokedAt: timestamp });
 });
 
-export default router;
+return router;
+}
 

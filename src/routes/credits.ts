@@ -8,11 +8,12 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { getDb } from '../db/database';
+import { RouteDependencies } from '../app-dependencies';
 import { PRICING, getCredits, addCredits } from '../chain/pricing';
 
 type Row = Record<string, any>;
 
+export function createCreditsRouter({ db, now, generateId }: RouteDependencies): Router {
 const router = Router();
 
 /**
@@ -36,7 +37,7 @@ router.get('/', (req: Request, res: Response) => {
     return res.status(401).json({ error: 'API key required to check credit balance.' });
   }
 
-  const credits = getCredits(getDb(), req.apiKey.id);
+  const credits = getCredits(db, req.apiKey.id);
   res.json({
     apiKeyId: req.apiKey.id,
     name: req.apiKey.name,
@@ -67,9 +68,14 @@ router.post('/purchase', (req: Request, res: Response) => {
   }
 
   const plan = PRICING[tier];
-  const db = getDb();
-
-  addCredits(db, req.apiKey.id, plan.credits, `Purchased: ${plan.name} ($${plan.priceUsd})`);
+  addCredits(
+    db,
+    req.apiKey.id,
+    plan.credits,
+    `Purchased: ${plan.name} ($${plan.priceUsd})`,
+    now,
+    generateId,
+  );
 
   const newBalance = getCredits(db, req.apiKey.id);
 
@@ -91,11 +97,11 @@ router.get('/transactions', (req: Request, res: Response) => {
     return res.status(401).json({ error: 'API key required.' });
   }
 
-  const rows = getDb()
+  const rows = db
     .prepare('SELECT * FROM credit_transactions WHERE apiKeyId = ? ORDER BY createdAt DESC LIMIT 100')
     .all(req.apiKey.id) as Row[];
 
-  const balance = getCredits(getDb(), req.apiKey.id);
+  const balance = getCredits(db, req.apiKey.id);
 
   res.json({
     balance,
@@ -103,5 +109,6 @@ router.get('/transactions', (req: Request, res: Response) => {
   });
 });
 
-export default router;
+return router;
+}
 

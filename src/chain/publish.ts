@@ -1,49 +1,28 @@
 /**
- * Publish workflow — the core of Atlas's blockchain integration.
+ * Development publication workflow using injected storage and attestation adapters.
  *
  * When a researcher publishes an artifact, this module:
  *   1. Bundles the artifact + its claims + sources into one package
  *   2. Hashes the bundle (SHA-256)
- *   3. Uploads the bundle to decentralized storage (IPFS)
- *   4. Anchors the hash on a blockchain
- *   5. Writes the chain record back to Atlas DB
+ *   3. Writes the bundle to the configured storage adapter
+ *   4. Records the hash with the configured attestation adapter
+ *   5. Writes the publication record back to Atlas DB
  *
- * The result: immutable, verifiable, permanent research.
+ * Local adapters are simulations; this workflow does not prove truth or permanence.
  */
 
-import { v4 as uuid } from 'uuid';
-import { getDb } from '../db/database';
-import { hashBundle } from './hash';
-import {
-  ArtifactBundle,
-  ChainAdapter,
-  PublishResult,
-  StorageAdapter,
-} from './types';
-import { LocalChainAdapter, LocalStorageAdapter } from './local-adapter';
-import { IpfsStorageAdapter } from './ipfs-adapter';
-import { config } from '../config';
-
+import type { AppDependencies } from '../app-dependencies';
+import { CANONICALIZATION_VERSION, canonicalizeJson, hashBundle } from './hash';
+import type { ArtifactBundle, PublishResult } from './types';
 type Row = Record<string, any>;
-
-// ── Adapter selection (env-driven) ──────────────────────────────
-
-function getStorageAdapter(): StorageAdapter {
-  if (config.storageProvider === 'ipfs') {
-    return new IpfsStorageAdapter();
-  }
-  return new LocalStorageAdapter();
-}
-
-function getChainAdapter(): ChainAdapter {
-  // TODO: check config.chainNetwork for 'base' | 'arbitrum' | etc.
-  return new LocalChainAdapter();
-}
 
 // ── Bundle builder ──────────────────────────────────────────────
 
-function buildBundle(artifactId: string, publishedBy: string): ArtifactBundle {
-  const db = getDb();
+export function buildBundle(
+  artifactId: string,
+  publishedBy: string,
+  { db, now }: Pick<AppDependencies, 'db' | 'now'>,
+): ArtifactBundle {
 
   // Fetch the artifact
   const artifact = db.prepare('SELECT * FROM artifacts WHERE id = ?').get(artifactId) as Row | undefined;
@@ -99,6 +78,7 @@ function buildBundle(artifactId: string, publishedBy: string): ArtifactBundle {
 
   return {
     schemaVersion: 'atlas/artifact/v1',
+    canonicalizationVersion: CANONICALIZATION_VERSION,
     artifact: {
       id: artifact.id,
       title: artifact.title,
@@ -113,7 +93,7 @@ function buildBundle(artifactId: string, publishedBy: string): ArtifactBundle {
     claims,
     sources,
     publishedBy,
-    publishedAt: new Date().toISOString(),
+    publishedAt: now().toISOString(),
   };
 }
 
@@ -122,22 +102,21 @@ function buildBundle(artifactId: string, publishedBy: string): ArtifactBundle {
 export async function publishToChain(
   artifactId: string,
   publishedBy: string,
+  dependencies: AppDependencies,
 ): Promise<PublishResult> {
-  const db = getDb();
-  const storage = getStorageAdapter();
-  const chain = getChainAdapter();
+  const { db, storage, chain, now, generateId } = dependencies;
 
   console.log(`📦 Building bundle for artifact ${artifactId}...`);
 
   // 1. Build the bundle
-  const bundle = buildBundle(artifactId, publishedBy);
+  const bundle = buildBundle(artifactId, publishedBy, dependencies);
 
   // 2. Hash the bundle
   const contentHash = hashBundle(bundle);
   console.log(`🔒 Content hash: ${contentHash}`);
 
   // 3. Upload to decentralized storage
-  const bundleJson = JSON.stringify(bundle, null, 2);
+  const bundleJson = canonicalizeJson(bundle);
   const storageResult = await storage.upload(bundleJson);
   console.log(`📤 Uploaded to storage: ${storageResult.cid} (${storageResult.size} bytes)`);
 
@@ -156,14 +135,14 @@ export async function publishToChain(
   console.log(`⛓️  Anchored on ${chainResult.chain}: ${chainResult.txHash}`);
 
   // 6. Write chain record to Atlas DB
-  const now = new Date().toISOString();
+  const timestamp = now().toISOString();
   db.prepare(`
     INSERT INTO chain_records (id, artifactId, contentHash, ipfsCid, chain, txHash, blockNumber, publishedBy, previousVersionTx, publishedAt)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    uuid(), artifactId, contentHash, storageResult.cid,
+    generateId(), artifactId, contentHash, storageResult.cid,
     chainResult.chain, chainResult.txHash, chainResult.blockNumber || null,
-    publishedBy, previousVersionTx || null, now,
+    publishedBy, previousVersionTx || null, timestamp,
   );
 
   // 7. Update the artifact with chain info
@@ -172,7 +151,7 @@ export async function publishToChain(
     WHERE id = ?
   `).run(
     contentHash, storageResult.cid, chainResult.txHash,
-    chainResult.chain, now, previousVersionTx || null, now, artifactId,
+    chainResult.chain, timestamp, previousVersionTx || null, timestamp, artifactId,
   );
 
   console.log(`✅ Artifact ${artifactId} published to chain successfully.`);
@@ -187,34 +166,59 @@ export async function publishToChain(
 
 // ── Verify ──────────────────────────────────────────────────────
 
-export async function verifyArtifact(artifactId: string): Promise<{
+export async function verifyArtifact(
+  artifactId: string,
+  { db, storage, chain }: Pick<AppDependencies, 'db' | 'storage' | 'chain'>,
+): Promise<{
   verified: boolean;
   contentHashMatch: boolean;
   onChainRecord: any;
+  integrityScope: 'full_content_rfc8785' | 'legacy_top_level_only' | 'unknown';
+  canonicalizationVersion?: string;
   error?: string;
 }> {
-  const db = getDb();
-  const storage = getStorageAdapter();
-  const chain = getChainAdapter();
 
   // 1. Get the artifact from Atlas DB
   const artifact = db.prepare('SELECT * FROM artifacts WHERE id = ?').get(artifactId) as Row | undefined;
-  if (!artifact) return { verified: false, contentHashMatch: false, onChainRecord: null, error: 'Artifact not found' };
-  if (!artifact.txHash) return { verified: false, contentHashMatch: false, onChainRecord: null, error: 'Artifact not published to chain' };
+  if (!artifact) return { verified: false, contentHashMatch: false, onChainRecord: null, integrityScope: 'unknown', error: 'Artifact not found' };
+  if (!artifact.txHash) return { verified: false, contentHashMatch: false, onChainRecord: null, integrityScope: 'unknown', error: 'Artifact not published to chain' };
 
   // 2. Verify the on-chain record
   const onChainRecord = await chain.verify(artifact.txHash);
   if (!onChainRecord.valid) {
-    return { verified: false, contentHashMatch: false, onChainRecord, error: 'On-chain record not found' };
+    return { verified: false, contentHashMatch: false, onChainRecord, integrityScope: 'unknown', error: 'On-chain record not found' };
   }
 
   // 3. Fetch from storage and re-hash
   let contentHashMatch = false;
+  let integrityScope: 'full_content_rfc8785' | 'legacy_top_level_only' | 'unknown' = 'unknown';
+  let canonicalizationVersion: string | undefined;
   try {
     const storedContent = await storage.retrieve(artifact.ipfsCid);
     const storedBundle = JSON.parse(storedContent) as ArtifactBundle;
+    canonicalizationVersion = storedBundle.canonicalizationVersion;
+    if (!canonicalizationVersion) {
+      return {
+        verified: false,
+        contentHashMatch: false,
+        onChainRecord,
+        integrityScope: 'legacy_top_level_only',
+        error: 'Legacy bundle has top-level-only integrity and cannot be verified as full content',
+      };
+    }
+    if (canonicalizationVersion !== CANONICALIZATION_VERSION) {
+      return {
+        verified: false,
+        contentHashMatch: false,
+        onChainRecord,
+        integrityScope: 'unknown',
+        canonicalizationVersion,
+        error: `Unsupported canonicalization version: ${canonicalizationVersion}`,
+      };
+    }
     const recomputedHash = hashBundle(storedBundle);
     contentHashMatch = recomputedHash === onChainRecord.contentHash;
+    integrityScope = 'full_content_rfc8785';
   } catch {
     // Storage retrieval failed — can't verify content, but chain record exists
   }
@@ -223,6 +227,8 @@ export async function verifyArtifact(artifactId: string): Promise<{
     verified: onChainRecord.valid && contentHashMatch,
     contentHashMatch,
     onChainRecord,
+    integrityScope,
+    canonicalizationVersion,
   };
 }
 

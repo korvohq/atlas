@@ -21,6 +21,10 @@
  *   Users buy credits or get them via subscription
  */
 
+import Database from 'better-sqlite3';
+import { randomUUID } from 'crypto';
+import { Clock, IdGenerator } from '../app-dependencies';
+
 export interface PricingTier {
   name: string;
   credits: number;
@@ -61,7 +65,7 @@ export const COST_PER_PUBLISH_USD = 0.02;
 /**
  * Get the current credit balance for an API key.
  */
-export function getCredits(db: any, apiKeyId: string): number {
+export function getCredits(db: Database.Database, apiKeyId: string): number {
   const row = db.prepare('SELECT credits FROM publish_credits WHERE apiKeyId = ?').get(apiKeyId) as any;
   return row?.credits || 0;
 }
@@ -70,23 +74,28 @@ export function getCredits(db: any, apiKeyId: string): number {
  * Deduct one credit for a publish operation.
  * Returns true if successful, false if insufficient credits.
  */
-export function deductCredit(db: any, apiKeyId: string): boolean {
+export function deductCredit(
+  db: Database.Database,
+  apiKeyId: string,
+  now: Clock = () => new Date(),
+  generateId: IdGenerator = randomUUID,
+): boolean {
   const current = getCredits(db, apiKeyId);
   if (current <= 0) return false;
 
   db.prepare('UPDATE publish_credits SET credits = credits - 1, updatedAt = ? WHERE apiKeyId = ?')
-    .run(new Date().toISOString(), apiKeyId);
+    .run(now().toISOString(), apiKeyId);
 
   // Log the transaction
   db.prepare(`INSERT INTO credit_transactions (id, apiKeyId, amount, type, description, createdAt)
     VALUES (?, ?, ?, ?, ?, ?)`)
     .run(
-      require('uuid').v4(),
+      generateId(),
       apiKeyId,
       -1,
       'publish',
       'Blockchain publish fee',
-      new Date().toISOString()
+      now().toISOString()
     );
 
   return true;
@@ -95,27 +104,34 @@ export function deductCredit(db: any, apiKeyId: string): boolean {
 /**
  * Add credits to an API key (after payment).
  */
-export function addCredits(db: any, apiKeyId: string, amount: number, description: string): void {
+export function addCredits(
+  db: Database.Database,
+  apiKeyId: string,
+  amount: number,
+  description: string,
+  now: Clock = () => new Date(),
+  generateId: IdGenerator = randomUUID,
+): void {
   const existing = db.prepare('SELECT apiKeyId FROM publish_credits WHERE apiKeyId = ?').get(apiKeyId) as any;
 
   if (existing) {
     db.prepare('UPDATE publish_credits SET credits = credits + ?, updatedAt = ? WHERE apiKeyId = ?')
-      .run(amount, new Date().toISOString(), apiKeyId);
+      .run(amount, now().toISOString(), apiKeyId);
   } else {
     db.prepare('INSERT INTO publish_credits (apiKeyId, credits, updatedAt) VALUES (?, ?, ?)')
-      .run(apiKeyId, amount, new Date().toISOString());
+      .run(apiKeyId, amount, now().toISOString());
   }
 
   // Log the transaction
   db.prepare(`INSERT INTO credit_transactions (id, apiKeyId, amount, type, description, createdAt)
     VALUES (?, ?, ?, ?, ?, ?)`)
     .run(
-      require('uuid').v4(),
+      generateId(),
       apiKeyId,
       amount,
       'purchase',
       description,
-      new Date().toISOString()
+      now().toISOString()
     );
 }
 

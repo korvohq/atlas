@@ -6,10 +6,11 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { getDb } from '../db/database';
+import { RouteDependencies } from '../app-dependencies';
 
 type Row = Record<string, any>;
 
+export function createSearchRouter({ db }: Pick<RouteDependencies, 'db'>): Router {
 const router = Router();
 
 /**
@@ -29,7 +30,6 @@ router.get('/', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Query parameter "q" is required (min 2 characters).' });
   }
 
-  const db = getDb();
   const results: Record<string, any[]> = {};
 
   const searchTypes = type ? [type] : ['claims', 'artifacts', 'sources', 'questions'];
@@ -121,5 +121,6 @@ router.get('/', (req: Request, res: Response) => {
   });
 });
 
-export default router;
+return router;
+}
 

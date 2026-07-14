@@ -6,7 +6,7 @@
  */
 
 import { initDb, getDb } from '../src/db/database';
-import { v4 as uuid } from 'uuid';
+import { randomUUID as uuid } from 'crypto';
 
 initDb();
 const db = getDb();

@@ -1,0 +1,35 @@
+{
+  "artifact": {
+    "body": "Nested fields must affect the hash.",
+    "createdAt": "2026-07-14T10:00:00.000Z",
+    "id": "40000000-0000-4000-8000-000000000001",
+    "tags": ["integrity", "Atlas"],
+    "title": "Nested integrity",
+    "type": "brief"
+  },
+  "claims": [
+    {
+      "confidence": "high",
+      "extractionMeta": {
+        "extractionConfidence": 0.75,
+        "pipelineVersion": "medha-fixture-v1"
+      },
+      "id": "30000000-0000-4000-8000-000000000001",
+      "sourceIds": ["20000000-0000-4000-8000-000000000001"],
+      "statement": "Recursive canonicalization covers this claim.",
+      "status": "draft"
+    }
+  ],
+  "publishedBy": "fixture-actor",
+  "publishedAt": "2026-07-14T12:00:00.000Z",
+  "schemaVersion": "atlas/artifact/v1",
+  "sources": [
+    {
+      "id": "20000000-0000-4000-8000-000000000001",
+      "title": "Canonical source",
+      "type": "paper",
+      "url": "https://example.com/research?a=1&b=2"
+    }
+  ]
+}
+

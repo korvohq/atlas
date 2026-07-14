@@ -2,8 +2,8 @@
 /**
  * Atlas Verification CLI
  *
- * Independently verify that a published artifact's content matches
- * its on-chain proof. No trust in the Atlas API required.
+ * Verify that a development publication's content matches its configured
+ * local attestation simulation. This verifies bytes, not claim truth.
  *
  * Usage:
  *   npx ts-node scripts/verify.ts <artifactId>
@@ -11,7 +11,7 @@
  */
 
 import { initDb, getDb } from '../src/db/database';
-import { hashBundle } from '../src/chain/hash';
+import { CANONICALIZATION_VERSION, hashBundle } from '../src/chain/hash';
 import { LocalStorageAdapter } from '../src/chain/local-adapter';
 import { LocalChainAdapter } from '../src/chain/local-adapter';
 import { ArtifactBundle } from '../src/chain/types';
@@ -31,7 +31,7 @@ async function verify() {
   const db = getDb();
 
   console.log('═══════════════════════════════════════════════════════');
-  console.log('  🔍 KORVO ATLAS — INDEPENDENT VERIFICATION REPORT');
+  console.log('  🔍 KORVO ATLAS — LOCAL ATTESTATION VERIFICATION');
   console.log('═══════════════════════════════════════════════════════');
   console.log();
 
@@ -50,8 +50,8 @@ async function verify() {
   console.log();
 
   if (!artifact.txHash) {
-    console.log('  ⚠️  This artifact has NOT been published to chain.');
-    console.log('     No on-chain proof exists. Nothing to verify.');
+    console.log('  ⚠️  This artifact has no attestation record.');
+    console.log('     Nothing to verify.');
     process.exit(0);
   }
 
@@ -61,30 +61,29 @@ async function verify() {
   console.log(`  contentHash:  ${artifact.contentHash}`);
   console.log();
 
-  // ── Step 2: Fetch on-chain record ──
-  console.log('Step 2: Verifying on-chain record...');
+  // ── Step 2: Fetch local attestation record ──
+  console.log('Step 2: Verifying local attestation record...');
   const chain = new LocalChainAdapter();
   const chainRecord = await chain.verify(artifact.txHash);
 
   if (!chainRecord.valid) {
-    console.error('  ❌ FAIL — On-chain record not found for this txHash.');
-    console.error('     The blockchain has no proof of this artifact.');
+    console.error('  ❌ FAIL — Local attestation record not found for this txHash.');
     process.exit(1);
   }
 
-  console.log(`  ✅ On-chain record found`);
+  console.log(`  ✅ Local attestation record found`);
   console.log(`     Chain contentHash: ${chainRecord.contentHash}`);
   console.log(`     Chain ipfsCid:     ${chainRecord.ipfsCid}`);
   console.log(`     Chain timestamp:   ${chainRecord.timestamp}`);
   console.log();
 
-  // ── Step 3: Check DB contentHash matches chain ──
-  console.log('Step 3: Comparing Atlas DB hash with on-chain hash...');
+  // ── Step 3: Check DB contentHash matches attestation ──
+  console.log('Step 3: Comparing Atlas DB hash with attestation hash...');
   const dbMatchesChain = artifact.contentHash === chainRecord.contentHash;
   if (dbMatchesChain) {
-    console.log('  ✅ MATCH — Atlas DB contentHash matches on-chain contentHash');
+    console.log('  ✅ MATCH — Atlas DB contentHash matches attestation contentHash');
   } else {
-    console.error('  ❌ MISMATCH — Atlas DB has a different hash than the chain.');
+    console.error('  ❌ MISMATCH — Atlas DB has a different hash than the attestation.');
     console.error(`     DB:    ${artifact.contentHash}`);
     console.error(`     Chain: ${chainRecord.contentHash}`);
   }
@@ -94,22 +93,31 @@ async function verify() {
   console.log('Step 4: Fetching content from storage and re-hashing...');
   const storage = new LocalStorageAdapter();
   let contentMatchesChain = false;
+  let fullContentIntegrity = false;
 
   try {
     const storedContent = await storage.retrieve(artifact.ipfsCid);
     const bundle: ArtifactBundle = JSON.parse(storedContent);
-    const recomputedHash = hashBundle(bundle);
 
     console.log(`  Retrieved bundle: ${Buffer.byteLength(storedContent)} bytes`);
+    if (!bundle.canonicalizationVersion) {
+      console.error('  ⚠️  LEGACY — bundle has top-level-only integrity.');
+      console.error('     It cannot be reported as full-content verified.');
+    } else if (bundle.canonicalizationVersion !== CANONICALIZATION_VERSION) {
+      console.error(`  ❌ Unsupported canonicalization version: ${bundle.canonicalizationVersion}`);
+    } else {
+      const recomputedHash = hashBundle(bundle);
+      fullContentIntegrity = true;
     console.log(`  Recomputed hash:  ${recomputedHash}`);
 
     contentMatchesChain = recomputedHash === chainRecord.contentHash;
     if (contentMatchesChain) {
-      console.log('  ✅ MATCH — Stored content hash matches on-chain hash');
+        console.log('  ✅ MATCH — Stored content hash matches attestation hash');
     } else {
       console.error('  ❌ MISMATCH — Content has been tampered with or corrupted.');
       console.error(`     Recomputed: ${recomputedHash}`);
-      console.error(`     On-chain:   ${chainRecord.contentHash}`);
+        console.error(`     Attested:   ${chainRecord.contentHash}`);
+      }
     }
   } catch (err: any) {
     console.error(`  ⚠️  Could not retrieve content from storage: ${err.message}`);
@@ -135,16 +143,17 @@ async function verify() {
 
   // ── Final verdict ──
   console.log('═══════════════════════════════════════════════════════');
-  const allPassed = chainRecord.valid && dbMatchesChain && contentMatchesChain;
+  const allPassed = chainRecord.valid && dbMatchesChain && fullContentIntegrity && contentMatchesChain;
   if (allPassed) {
     console.log('  ✅ VERDICT: VERIFIED');
-    console.log('  This artifact is authentic and untampered.');
-    console.log('  Its content matches the on-chain proof exactly.');
+    console.log('  The stored bytes match the local attestation exactly.');
+    console.log('  This result does not establish that research claims are true.');
   } else {
     console.log('  ❌ VERDICT: VERIFICATION FAILED');
-    if (!chainRecord.valid) console.log('  • No on-chain record found');
-    if (!dbMatchesChain) console.log('  • Database hash does not match chain');
-    if (!contentMatchesChain) console.log('  • Stored content does not match chain');
+    if (!chainRecord.valid) console.log('  • No local attestation record found');
+    if (!dbMatchesChain) console.log('  • Database hash does not match attestation');
+    if (!fullContentIntegrity) console.log('  • Full-content canonicalization is unavailable');
+    if (!contentMatchesChain) console.log('  • Stored content does not match attestation');
   }
   console.log('═══════════════════════════════════════════════════════');
 
