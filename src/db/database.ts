@@ -39,6 +39,8 @@ export function initDb(): void {
       retrievedAt TEXT,
       contentHash TEXT,
       tags TEXT,
+      origin TEXT NOT NULL DEFAULT 'human',
+      reviewStatus TEXT NOT NULL DEFAULT 'unreviewed',
       createdBy TEXT,
       createdAt TEXT NOT NULL,
       updatedAt TEXT
@@ -52,6 +54,9 @@ export function initDb(): void {
       questionId TEXT,
       status TEXT NOT NULL DEFAULT 'draft',
       tags TEXT,
+      origin TEXT NOT NULL DEFAULT 'human',
+      reviewStatus TEXT NOT NULL DEFAULT 'unreviewed',
+      extractionMeta TEXT,       -- JSON object (provenance for AI-extracted claims)
       createdBy TEXT,
       createdAt TEXT NOT NULL,
       updatedAt TEXT,
@@ -69,6 +74,8 @@ export function initDb(): void {
       sourceIds TEXT NOT NULL,   -- JSON array (kept for backward compat)
       status TEXT NOT NULL DEFAULT 'draft',
       tags TEXT,
+      origin TEXT NOT NULL DEFAULT 'human',
+      reviewStatus TEXT NOT NULL DEFAULT 'unreviewed',
       createdBy TEXT,
       createdAt TEXT NOT NULL,
       updatedAt TEXT,
@@ -229,12 +236,20 @@ export function initDb(): void {
 
     CREATE INDEX IF NOT EXISTS idx_sources_type ON sources(type);
     CREATE INDEX IF NOT EXISTS idx_sources_createdAt ON sources(createdAt);
+    CREATE INDEX IF NOT EXISTS idx_sources_origin ON sources(origin);
+    CREATE INDEX IF NOT EXISTS idx_sources_reviewStatus ON sources(reviewStatus);
 
     CREATE INDEX IF NOT EXISTS idx_questions_status ON questions(status);
     CREATE INDEX IF NOT EXISTS idx_questions_createdAt ON questions(createdAt);
 
     CREATE INDEX IF NOT EXISTS idx_validators_type ON validators(type);
     CREATE INDEX IF NOT EXISTS idx_validators_reputation ON validators(reputation);
+
+    CREATE INDEX IF NOT EXISTS idx_claims_origin ON claims(origin);
+    CREATE INDEX IF NOT EXISTS idx_claims_reviewStatus ON claims(reviewStatus);
+
+    CREATE INDEX IF NOT EXISTS idx_artifacts_origin ON artifacts(origin);
+    CREATE INDEX IF NOT EXISTS idx_artifacts_reviewStatus ON artifacts(reviewStatus);
   `);
 
   // ═══════════════════════════════════════════════════════════

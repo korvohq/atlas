@@ -12,6 +12,8 @@ router.get('/', (req: Request, res: Response) => {
   const offset = parseInt(req.query.offset as string) || 0;
   const status = req.query.status as string;
   const type = req.query.type as string;
+  const origin = req.query.origin as string;
+  const reviewStatus = req.query.reviewStatus as string;
   const q = req.query.q as string;
 
   let query = 'SELECT * FROM artifacts';
@@ -20,6 +22,8 @@ router.get('/', (req: Request, res: Response) => {
 
   if (status) { conditions.push('status = ?'); params.push(status); }
   if (type) { conditions.push('type = ?'); params.push(type); }
+  if (origin) { conditions.push('origin = ?'); params.push(origin); }
+  if (reviewStatus) { conditions.push('reviewStatus = ?'); params.push(reviewStatus); }
 
   if (q) {
     const ftsIds = getDb().prepare("SELECT id FROM artifacts_fts WHERE artifacts_fts MATCH ? LIMIT ?").all(q, limit) as Row[];
@@ -66,6 +70,8 @@ router.post('/', (req: Request, res: Response) => {
     id: uuid(),
     ...req.body,
     status: req.body.status || 'draft',
+    origin: req.body.origin || 'human',
+    reviewStatus: req.body.reviewStatus || 'unreviewed',
     createdAt: now,
     updatedAt: now,
   };
@@ -74,13 +80,14 @@ router.post('/', (req: Request, res: Response) => {
   if (!valid) return res.status(400).json({ errors: validateArtifact.errors });
 
   getDb().prepare(`
-    INSERT INTO artifacts (id, title, type, body, summary, questionId, claimIds, sourceIds, status, tags, createdBy, createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO artifacts (id, title, type, body, summary, questionId, claimIds, sourceIds, status, tags, origin, reviewStatus, createdBy, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     artifact.id, artifact.title, artifact.type, artifact.body,
     artifact.summary || null, artifact.questionId || null,
     JSON.stringify(artifact.claimIds), JSON.stringify(artifact.sourceIds),
     artifact.status, JSON.stringify(artifact.tags || []),
+    artifact.origin, artifact.reviewStatus,
     artifact.createdBy || null, artifact.createdAt, artifact.updatedAt
   );
 
@@ -138,13 +145,14 @@ router.patch('/:id', (req: Request, res: Response) => {
   if (!valid) return res.status(400).json({ errors: validateArtifact.errors });
 
   db.prepare(`
-    UPDATE artifacts SET title = ?, type = ?, body = ?, summary = ?, questionId = ?, claimIds = ?, sourceIds = ?, status = ?, tags = ?, createdBy = ?, updatedAt = ?
+    UPDATE artifacts SET title = ?, type = ?, body = ?, summary = ?, questionId = ?, claimIds = ?, sourceIds = ?, status = ?, tags = ?, origin = ?, reviewStatus = ?, createdBy = ?, updatedAt = ?
     WHERE id = ?
   `).run(
     updated.title, updated.type, updated.body,
     updated.summary || null, updated.questionId || null,
     JSON.stringify(updated.claimIds), JSON.stringify(updated.sourceIds),
     updated.status, JSON.stringify(updated.tags || []),
+    updated.origin || 'human', updated.reviewStatus || 'unreviewed',
     updated.createdBy || null, updated.updatedAt, updated.id
   );
 

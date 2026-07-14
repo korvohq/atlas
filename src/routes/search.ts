@@ -21,6 +21,8 @@ const router = Router();
 router.get('/', (req: Request, res: Response) => {
   const q = req.query.q as string;
   const type = req.query.type as string;
+  const origin = req.query.origin as string;
+  const reviewStatus = req.query.reviewStatus as string;
   const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
 
   if (!q || q.trim().length < 2) {
@@ -34,30 +36,37 @@ router.get('/', (req: Request, res: Response) => {
 
   if (searchTypes.includes('claims')) {
     try {
-      const rows = db.prepare(`
+      let claimQuery = `
         SELECT c.* FROM claims_fts f
         JOIN claims c ON c.id = f.id
-        WHERE claims_fts MATCH ?
-        ORDER BY rank
-        LIMIT ?
-      `).all(q, limit) as Row[];
+        WHERE claims_fts MATCH ?`;
+      const claimParams: any[] = [q];
+      if (origin) { claimQuery += ' AND c.origin = ?'; claimParams.push(origin); }
+      if (reviewStatus) { claimQuery += ' AND c.reviewStatus = ?'; claimParams.push(reviewStatus); }
+      claimQuery += ' ORDER BY rank LIMIT ?';
+      claimParams.push(limit);
+      const rows = db.prepare(claimQuery).all(...claimParams) as Row[];
       results.claims = rows.map(r => ({
         ...r,
         sourceIds: JSON.parse(r.sourceIds || '[]'),
         tags: JSON.parse(r.tags || '[]'),
+        extractionMeta: r.extractionMeta ? JSON.parse(r.extractionMeta) : null,
       }));
     } catch { results.claims = []; }
   }
 
   if (searchTypes.includes('artifacts')) {
     try {
-      const rows = db.prepare(`
+      let artQuery = `
         SELECT a.* FROM artifacts_fts f
         JOIN artifacts a ON a.id = f.id
-        WHERE artifacts_fts MATCH ?
-        ORDER BY rank
-        LIMIT ?
-      `).all(q, limit) as Row[];
+        WHERE artifacts_fts MATCH ?`;
+      const artParams: any[] = [q];
+      if (origin) { artQuery += ' AND a.origin = ?'; artParams.push(origin); }
+      if (reviewStatus) { artQuery += ' AND a.reviewStatus = ?'; artParams.push(reviewStatus); }
+      artQuery += ' ORDER BY rank LIMIT ?';
+      artParams.push(limit);
+      const rows = db.prepare(artQuery).all(...artParams) as Row[];
       results.artifacts = rows.map(r => ({
         ...r,
         claimIds: JSON.parse(r.claimIds || '[]'),
@@ -70,13 +79,16 @@ router.get('/', (req: Request, res: Response) => {
 
   if (searchTypes.includes('sources')) {
     try {
-      const rows = db.prepare(`
+      let srcQuery = `
         SELECT s.* FROM sources_fts f
         JOIN sources s ON s.id = f.id
-        WHERE sources_fts MATCH ?
-        ORDER BY rank
-        LIMIT ?
-      `).all(q, limit) as Row[];
+        WHERE sources_fts MATCH ?`;
+      const srcParams: any[] = [q];
+      if (origin) { srcQuery += ' AND s.origin = ?'; srcParams.push(origin); }
+      if (reviewStatus) { srcQuery += ' AND s.reviewStatus = ?'; srcParams.push(reviewStatus); }
+      srcQuery += ' ORDER BY rank LIMIT ?';
+      srcParams.push(limit);
+      const rows = db.prepare(srcQuery).all(...srcParams) as Row[];
       results.sources = rows.map(r => ({
         ...r,
         tags: JSON.parse(r.tags || '[]'),

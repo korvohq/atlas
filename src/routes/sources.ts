@@ -11,6 +11,8 @@ router.get('/', (req: Request, res: Response) => {
   const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
   const offset = parseInt(req.query.offset as string) || 0;
   const type = req.query.type as string;
+  const origin = req.query.origin as string;
+  const reviewStatus = req.query.reviewStatus as string;
   const q = req.query.q as string;
 
   let query = 'SELECT * FROM sources';
@@ -18,6 +20,8 @@ router.get('/', (req: Request, res: Response) => {
   const params: any[] = [];
 
   if (type) { conditions.push('type = ?'); params.push(type); }
+  if (origin) { conditions.push('origin = ?'); params.push(origin); }
+  if (reviewStatus) { conditions.push('reviewStatus = ?'); params.push(reviewStatus); }
 
   if (q) {
     const ftsIds = getDb().prepare("SELECT id FROM sources_fts WHERE sources_fts MATCH ? LIMIT ?").all(q, limit) as Row[];
@@ -50,6 +54,8 @@ router.post('/', (req: Request, res: Response) => {
   const source: Row = {
     id: uuid(),
     ...req.body,
+    origin: req.body.origin || 'human',
+    reviewStatus: req.body.reviewStatus || 'unreviewed',
     createdAt: now,
     updatedAt: now,
   };
@@ -58,12 +64,13 @@ router.post('/', (req: Request, res: Response) => {
   if (!valid) return res.status(400).json({ errors: validateSource.errors });
 
   getDb().prepare(`
-    INSERT INTO sources (id, type, title, url, author, publishedAt, retrievedAt, contentHash, tags, createdBy, createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO sources (id, type, title, url, author, publishedAt, retrievedAt, contentHash, tags, origin, reviewStatus, createdBy, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     source.id, source.type, source.title, source.url || null,
     source.author || null, source.publishedAt || null, source.retrievedAt || null,
     source.contentHash || null, JSON.stringify(source.tags || []),
+    source.origin, source.reviewStatus,
     source.createdBy || null, source.createdAt, source.updatedAt
   );
 
@@ -87,12 +94,13 @@ router.patch('/:id', (req: Request, res: Response) => {
   if (!valid) return res.status(400).json({ errors: validateSource.errors });
 
   getDb().prepare(`
-    UPDATE sources SET type = ?, title = ?, url = ?, author = ?, publishedAt = ?, retrievedAt = ?, contentHash = ?, tags = ?, createdBy = ?, updatedAt = ?
+    UPDATE sources SET type = ?, title = ?, url = ?, author = ?, publishedAt = ?, retrievedAt = ?, contentHash = ?, tags = ?, origin = ?, reviewStatus = ?, createdBy = ?, updatedAt = ?
     WHERE id = ?
   `).run(
     updated.type, updated.title, updated.url || null,
     updated.author || null, updated.publishedAt || null, updated.retrievedAt || null,
     updated.contentHash || null, JSON.stringify(updated.tags || []),
+    updated.origin || 'human', updated.reviewStatus || 'unreviewed',
     updated.createdBy || null, updated.updatedAt, updated.id
   );
 

@@ -34,6 +34,8 @@ export interface ArtifactBundle {
     confidence: string;
     sourceIds: string[];
     status: string;
+    origin?: string;
+    extractionMeta?: Record<string, any>;
   }>;
   sources: Array<{
     id: string;
@@ -42,6 +44,7 @@ export interface ArtifactBundle {
     url?: string;
     author?: string;
     contentHash?: string;
+    origin?: string;
   }>;
   publishedBy: string;
   publishedAt: string;

@@ -12,6 +12,8 @@ router.get('/', (req: Request, res: Response) => {
   const offset = parseInt(req.query.offset as string) || 0;
   const status = req.query.status as string;
   const confidence = req.query.confidence as string;
+  const origin = req.query.origin as string;
+  const reviewStatus = req.query.reviewStatus as string;
   const q = req.query.q as string;
 
   let query = 'SELECT * FROM claims';
@@ -20,6 +22,8 @@ router.get('/', (req: Request, res: Response) => {
 
   if (status) { conditions.push('status = ?'); params.push(status); }
   if (confidence) { conditions.push('confidence = ?'); params.push(confidence); }
+  if (origin) { conditions.push('origin = ?'); params.push(origin); }
+  if (reviewStatus) { conditions.push('reviewStatus = ?'); params.push(reviewStatus); }
 
   if (q) {
     const ftsIds = getDb().prepare("SELECT id FROM claims_fts WHERE claims_fts MATCH ? LIMIT ?").all(q, limit) as Row[];
@@ -40,6 +44,7 @@ router.get('/', (req: Request, res: Response) => {
     ...r,
     sourceIds: JSON.parse(r.sourceIds || '[]'),
     tags: JSON.parse(r.tags || '[]'),
+    extractionMeta: r.extractionMeta ? JSON.parse(r.extractionMeta) : null,
   }));
 
   const total = (getDb().prepare('SELECT COUNT(*) as total FROM claims').get() as Row).total;
@@ -54,6 +59,7 @@ router.get('/:id', (req: Request, res: Response) => {
     ...row,
     sourceIds: JSON.parse(row.sourceIds || '[]'),
     tags: JSON.parse(row.tags || '[]'),
+    extractionMeta: row.extractionMeta ? JSON.parse(row.extractionMeta) : null,
   });
 });
 
@@ -63,6 +69,8 @@ router.post('/', (req: Request, res: Response) => {
     id: uuid(),
     ...req.body,
     status: req.body.status || 'draft',
+    origin: req.body.origin || 'human',
+    reviewStatus: req.body.reviewStatus || 'unreviewed',
     createdAt: now,
     updatedAt: now,
   };
@@ -71,12 +79,14 @@ router.post('/', (req: Request, res: Response) => {
   if (!valid) return res.status(400).json({ errors: validateClaim.errors });
 
   getDb().prepare(`
-    INSERT INTO claims (id, statement, confidence, sourceIds, questionId, status, tags, createdBy, createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO claims (id, statement, confidence, sourceIds, questionId, status, tags, origin, reviewStatus, extractionMeta, createdBy, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     claim.id, claim.statement, claim.confidence,
     JSON.stringify(claim.sourceIds), claim.questionId || null,
     claim.status, JSON.stringify(claim.tags || []),
+    claim.origin, claim.reviewStatus,
+    claim.extractionMeta ? JSON.stringify(claim.extractionMeta) : null,
     claim.createdBy || null, claim.createdAt, claim.updatedAt
   );
 
@@ -104,12 +114,14 @@ router.patch('/:id', (req: Request, res: Response) => {
   if (!valid) return res.status(400).json({ errors: validateClaim.errors });
 
   getDb().prepare(`
-    UPDATE claims SET statement = ?, confidence = ?, sourceIds = ?, questionId = ?, status = ?, tags = ?, createdBy = ?, updatedAt = ?
+    UPDATE claims SET statement = ?, confidence = ?, sourceIds = ?, questionId = ?, status = ?, tags = ?, origin = ?, reviewStatus = ?, extractionMeta = ?, createdBy = ?, updatedAt = ?
     WHERE id = ?
   `).run(
     updated.statement, updated.confidence,
     JSON.stringify(updated.sourceIds), updated.questionId || null,
     updated.status, JSON.stringify(updated.tags || []),
+    updated.origin || 'human', updated.reviewStatus || 'unreviewed',
+    updated.extractionMeta ? JSON.stringify(updated.extractionMeta) : null,
     updated.createdBy || null, updated.updatedAt, updated.id
   );
 
@@ -117,6 +129,35 @@ router.patch('/:id', (req: Request, res: Response) => {
   syncClaimSources(updated.id, updated.sourceIds);
 
   res.json(updated);
+});
+
+/**
+ * PATCH /api/v1/claims/:id/review — Human triage endpoint for AI-extracted claims.
+ * Accepts { reviewStatus, reviewedBy? } to mark a claim as verified or rejected.
+ */
+router.patch('/:id/review', (req: Request, res: Response) => {
+  const { reviewStatus, reviewedBy } = req.body;
+  const validStatuses = ['unreviewed', 'human_verified', 'human_rejected'];
+
+  if (!reviewStatus || !validStatuses.includes(reviewStatus)) {
+    return res.status(400).json({
+      error: `reviewStatus is required and must be one of: ${validStatuses.join(', ')}`,
+    });
+  }
+
+  const existing = getDb().prepare('SELECT * FROM claims WHERE id = ?').get(req.params.id) as Row | undefined;
+  if (!existing) return res.status(404).json({ error: 'Claim not found' });
+
+  const now = new Date().toISOString();
+  getDb().prepare('UPDATE claims SET reviewStatus = ?, updatedAt = ? WHERE id = ?')
+    .run(reviewStatus, now, req.params.id);
+
+  res.json({
+    id: existing.id,
+    reviewStatus,
+    reviewedBy: reviewedBy || req.apiKey?.name || null,
+    updatedAt: now,
+  });
 });
 
 router.delete('/:id', (req: Request, res: Response) => {

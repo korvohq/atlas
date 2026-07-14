@@ -65,6 +65,8 @@ function buildBundle(artifactId: string, publishedBy: string): ArtifactBundle {
         confidence: claim.confidence,
         sourceIds: JSON.parse(claim.sourceIds || '[]'),
         status: claim.status,
+        origin: claim.origin || undefined,
+        extractionMeta: claim.extractionMeta ? JSON.parse(claim.extractionMeta) : undefined,
       });
     }
   }
@@ -81,6 +83,7 @@ function buildBundle(artifactId: string, publishedBy: string): ArtifactBundle {
         url: source.url || undefined,
         author: source.author || undefined,
         contentHash: source.contentHash || undefined,
+        origin: source.origin || undefined,
       });
     }
   }

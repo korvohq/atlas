@@ -48,6 +48,18 @@
       "type": "array",
       "items": { "type": "string" }
     },
+    "origin": {
+      "type": "string",
+      "enum": ["human", "ai_extracted", "ai_assisted"],
+      "default": "human",
+      "description": "How this source was ingested — manually by a human, discovered by AI, or AI-assisted."
+    },
+    "reviewStatus": {
+      "type": "string",
+      "enum": ["unreviewed", "human_verified", "human_rejected"],
+      "default": "unreviewed",
+      "description": "Whether a human has verified this source entry."
+    },
     "createdBy": {
       "type": "string"
     },

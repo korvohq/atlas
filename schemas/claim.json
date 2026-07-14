@@ -40,6 +40,48 @@
       "type": "array",
       "items": { "type": "string" }
     },
+    "origin": {
+      "type": "string",
+      "enum": ["human", "ai_extracted", "ai_assisted"],
+      "default": "human",
+      "description": "How this claim was created — manually by a human, extracted by AI, or AI-assisted."
+    },
+    "reviewStatus": {
+      "type": "string",
+      "enum": ["unreviewed", "human_verified", "human_rejected"],
+      "default": "unreviewed",
+      "description": "Whether a human has reviewed this claim (independent of publication status)."
+    },
+    "extractionMeta": {
+      "type": "object",
+      "description": "Provenance metadata for AI-extracted claims. Null/absent for human-authored claims.",
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "The LLM model used for extraction (e.g. 'gpt-4o', 'claude-3.5-sonnet')."
+        },
+        "sourcePassage": {
+          "type": "string",
+          "description": "The exact passage from the source document that this claim was extracted from."
+        },
+        "extractionConfidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Model's confidence in the extraction accuracy (0-1). Separate from epistemological 'confidence'."
+        },
+        "extractedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the extraction run."
+        },
+        "pipelineVersion": {
+          "type": "string",
+          "description": "Version of the ingestion pipeline that produced this extraction."
+        }
+      },
+      "additionalProperties": true
+    },
     "createdBy": {
       "type": "string"
     },
